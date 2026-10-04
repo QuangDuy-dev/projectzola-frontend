@@ -242,15 +242,13 @@ export interface ProductDto {
 
 export interface ProductSearchDto {
   id: string;
-  shopId: string;
-  shopName: string;
   name: string;
   description?: string | null;
   price: number;
   stock: number;
-  categoryId?: string | null;
-  categoryName?: string | null;
-  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+  shop: { id: string; name: string };
+  category?: { id: string; name: string } | null;
   createdAt: string;
 }
 

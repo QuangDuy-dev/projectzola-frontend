@@ -26,14 +26,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           style={{
             width: '100%',
-            padding: '0.55rem 0.85rem',
-            borderRadius: 'var(--radius-md)',
-            border: `1px solid ${error ? 'var(--color-danger)' : isFocused ? 'var(--color-primary)' : 'var(--color-border)'}`,
+            minHeight: '40px',
+            padding: '0.55rem 0.875rem',
+            borderRadius: 'var(--radius-lg)',
+            border: `1px solid ${error ? 'var(--color-danger)' : isFocused ? 'var(--color-primary)' : 'var(--color-border-strong)'}`,
             backgroundColor: 'var(--color-surface)',
             color: 'var(--color-text)',
             outline: 'none',
             fontSize: '0.875rem',
-            boxShadow: isFocused && !error ? '0 0 0 3px var(--color-primary-glow)' : 'none',
+            boxShadow: isFocused && !error ? '0 0 0 3.5px var(--color-primary-glow)' : 'var(--shadow-sm)',
             transition: 'border-color var(--dur-feedback) var(--ease-out), box-shadow var(--dur-feedback) var(--ease-out)',
             ...style,
           }}

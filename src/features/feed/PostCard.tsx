@@ -50,7 +50,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
   const videos = post.media.filter((m) => m.mediaType === 'Video');
 
   return (
-    <Card style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+    <Card
+      className="card-hover-lift"
+      style={{
+        padding: '1.25rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.875rem',
+        borderRadius: 'var(--radius-xl)',
+        backgroundColor: 'var(--color-surface)',
+        border: '1px solid rgba(226, 232, 240, 0.75)',
+        boxShadow: 'var(--shadow-card)',
+      }}
+    >
       {/* Author Header */}
       <UserIdentity
         userId={post.author?.id || post.userId}
@@ -62,13 +74,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
       />
 
       {/* Post Text */}
-      <p style={{ fontSize: '0.9375rem', lineHeight: '1.6', whiteSpace: 'pre-line', color: 'var(--color-text)' }}>
+      <p style={{ fontSize: '0.9375rem', lineHeight: '1.65', whiteSpace: 'pre-line', color: 'var(--color-text)', letterSpacing: '-0.01em' }}>
         {post.content}
       </p>
 
       {/* Media: Video */}
       {videos.length > 0 && (
-        <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', maxHeight: '450px', boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', maxHeight: '460px', boxShadow: 'var(--shadow-sm)', border: '1px solid rgba(226, 232, 240, 0.6)' }}>
           <SafeVideo videoUrl={videos[0].url} posterUrl={videos[0].thumbnailUrl} />
         </div>
       )}
@@ -80,27 +92,72 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
             display: 'grid',
             gridTemplateColumns: images.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '0.5rem',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--radius-lg)',
             overflow: 'hidden',
             boxShadow: 'var(--shadow-sm)',
+            border: '1px solid rgba(226, 232, 240, 0.6)',
           }}
         >
           {images.map((img) => (
-            <div key={img.id} style={{ height: images.length === 1 ? '380px' : '200px' }}>
-              <SafeImage src={img.url} alt="post media" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div key={img.id} style={{ height: images.length === 1 ? '380px' : '200px', overflow: 'hidden' }}>
+              <SafeImage
+                src={img.url}
+                alt="post media"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transition: 'transform 0.3s var(--ease-out)',
+                }}
+              />
             </div>
           ))}
         </div>
       )}
 
-      {/* Actions & Metrics */}
+      {/* Metrics Row */}
+      {(post.likeCount > 0 || post.commentCount > 0) && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.8125rem',
+            color: 'var(--color-text-muted)',
+            paddingTop: '0.25rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                background: 'var(--color-primary-gradient)',
+                color: '#ffffff',
+                fontSize: '11px',
+                boxShadow: '0 2px 6px rgba(255, 90, 0, 0.3)',
+              }}
+            >
+              👍
+            </span>
+            <span>{post.likeCount} lượt thích</span>
+          </div>
+          <span>{post.commentCount} bình luận</span>
+        </div>
+      )}
+
+      {/* Actions Bar */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderTop: '1px solid var(--color-border)',
-          paddingTop: '0.75rem',
+          borderTop: '1px solid rgba(226, 232, 240, 0.6)',
+          paddingTop: '0.625rem',
         }}
       >
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -110,7 +167,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
             onClick={() => onToggleReaction(post.id, 'Like')}
           >
             <ThumbsUp size={16} />
-            <span>{post.likeCount}</span>
+            <span>Thích</span>
           </Button>
 
           <Button
@@ -119,13 +176,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
             onClick={() => onToggleReaction(post.id, 'Dislike')}
           >
             <ThumbsDown size={16} />
-            <span>{post.dislikeCount}</span>
+            <span>Không thích</span>
           </Button>
         </div>
 
         <Button variant="ghost" size="sm" onClick={() => setShowComments((prev) => !prev)}>
           <MessageCircle size={16} />
-          <span>{post.commentCount} Bình luận</span>
+          <span>Bình luận</span>
         </Button>
       </div>
 

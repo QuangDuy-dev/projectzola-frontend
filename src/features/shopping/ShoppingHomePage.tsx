@@ -53,71 +53,124 @@ export const ShoppingHomePage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Search Header Banner */}
+      {/* Zola Mall Premium Hero Banner */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #180d28 100%)',
+          color: '#ffffff',
+          padding: '1.75rem',
+          borderRadius: 'var(--radius-xl)',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-card)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+        }}
+      >
+        {/* Ambient Decorative Glow */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-50px',
+            right: '-50px',
+            width: '240px',
+            height: '240px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255, 90, 0, 0.35) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                <span
+                  style={{
+                    background: 'var(--color-primary-gradient)',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    letterSpacing: '0.5px',
+                    boxShadow: 'var(--shadow-glow)',
+                  }}
+                >
+                  🔥 ZOLA MALL
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.75)' }}>• 100% Gian hàng chính hãng</span>
+              </div>
+              <h2 style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.5px', margin: 0, lineHeight: 1.2 }}>
+                Trải Nghiệm Mua Sắm & Deal Hời Đỉnh Cao
+              </h2>
+              <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem', marginTop: '0.35rem' }}>
+                Freeship toàn quốc mọi đơn hàng • Đổi trả dễ dàng 7 ngày • Tích điểm thành viên
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <Button
+                variant={activeTab === 'products' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setActiveTab('products');
+                  setPage(1);
+                }}
+                style={activeTab !== 'products' ? { backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', borderColor: 'rgba(255, 255, 255, 0.2)' } : undefined}
+              >
+                Sản phẩm Mall
+              </Button>
+              <Button
+                variant={activeTab === 'shops' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setActiveTab('shops');
+                  setPage(1);
+                }}
+                style={activeTab !== 'shops' ? { backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', borderColor: 'rgba(255, 255, 255, 0.2)' } : undefined}
+              >
+                <Store size={14} /> Gian hàng Shop
+              </Button>
+            </div>
+          </div>
+
+          {/* Search input with 300ms debounce */}
+          <div style={{ position: 'relative' }}>
+            <Input
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              placeholder={activeTab === 'products' ? 'Tìm kiếm tên sản phẩm, mã SKU, thương hiệu uy tín...' : 'Tìm theo tên gian hàng, nhà bán hàng...'}
+              style={{
+                paddingLeft: '2.6rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                color: '#0f172a',
+                borderRadius: 'var(--radius-lg)',
+              }}
+            />
+            <Search
+              size={18}
+              style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-primary)' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter and Categories Bar */}
       <div
         style={{
           backgroundColor: 'var(--color-surface)',
-          padding: '1.25rem',
+          padding: '1rem 1.25rem',
           borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border)',
+          border: '1px solid rgba(226, 232, 240, 0.75)',
+          boxShadow: 'var(--shadow-card)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
-          boxShadow: 'var(--shadow-sm)',
+          gap: '0.85rem',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem' }}>
-          <div>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-text)', letterSpacing: '-0.3px' }}>
-              Zola Mall <span style={{ color: 'var(--color-primary)', fontSize: '0.9rem', fontWeight: 700 }}>• Mua sắm chính hãng</span>
-            </h2>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>
-              Khám phá hàng ngàn sản phẩm chất lượng từ các gian hàng uy tín
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <Button
-              variant={activeTab === 'products' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => {
-                setActiveTab('products');
-                setPage(1);
-              }}
-            >
-              Tìm Sản phẩm
-            </Button>
-            <Button
-              variant={activeTab === 'shops' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => {
-                setActiveTab('shops');
-                setPage(1);
-              }}
-            >
-              <Store size={14} /> Tìm Cửa hàng
-            </Button>
-          </div>
-        </div>
-
-        {/* Search input with 300ms debounce */}
-        <div style={{ position: 'relative' }}>
-          <Input
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setPage(1);
-            }}
-            placeholder={activeTab === 'products' ? 'Tìm theo tên sản phẩm...' : 'Tìm theo tên cửa hàng...'}
-            style={{ paddingLeft: '2.5rem' }}
-          />
-          <Search
-            size={18}
-            style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}
-          />
-        </div>
-
-        {/* Categories Pills & Sorters (Only for products) */}
         {activeTab === 'products' && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             {/* Category Filter Pills */}
@@ -215,6 +268,7 @@ export const ShoppingHomePage: React.FC = () => {
                   <Card
                     key={product.id}
                     hoverable
+                    className="card-hover-lift"
                     onClick={() => navigate(`/products/${product.id}`)}
                     style={{
                       cursor: 'pointer',
@@ -222,34 +276,63 @@ export const ShoppingHomePage: React.FC = () => {
                       overflow: 'hidden',
                       display: 'flex',
                       flexDirection: 'column',
-                      borderRadius: 'var(--radius-md)',
+                      borderRadius: 'var(--radius-xl)',
+                      border: '1px solid rgba(226, 232, 240, 0.75)',
+                      backgroundColor: 'var(--color-surface)',
+                      boxShadow: 'var(--shadow-card)',
                     }}
                   >
-                    <div style={{ height: '175px', width: '100%', backgroundColor: '#f1f5f9', position: 'relative' }}>
-                      <SafeImage src={product.imageUrl} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ height: '185px', width: '100%', backgroundColor: '#f1f5f9', position: 'relative', overflow: 'hidden' }}>
+                      <SafeImage
+                        src={product.thumbnailUrl}
+                        alt={product.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          transition: 'transform 0.35s var(--ease-out)',
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '10px',
+                          left: '10px',
+                          background: 'var(--color-primary-gradient)',
+                          color: '#ffffff',
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-full)',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                          letterSpacing: '0.3px',
+                        }}
+                      >
+                        MALL
+                      </span>
                     </div>
 
-                    <div style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.4rem' }}>
+                    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.45rem' }}>
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/shops/${product.shopId}`);
+                          navigate(`/shops/${product.shop.id}`);
                         }}
-                        style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 500 }}
                       >
-                        <Store size={12} /> {product.shopName}
+                        <Store size={13} color="var(--color-primary)" /> {product.shop.name}
                       </span>
 
-                      <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)', lineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.35 }}>
+                      <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text)', lineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>
                         {product.name}
                       </h4>
 
-                      <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem' }}>
+                      <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.6rem' }}>
                         <div>
-                          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+                          <div style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--color-primary)', letterSpacing: '-0.3px' }}>
                             {formatCurrencyVnd(product.price)}
                           </div>
-                          <span style={{ fontSize: '0.6875rem', color: product.stock > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                          <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: product.stock > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
                             {product.stock > 0 ? `Còn ${product.stock} sp` : 'Hết hàng'}
                           </span>
                         </div>
@@ -259,10 +342,10 @@ export const ShoppingHomePage: React.FC = () => {
                           size="sm"
                           disabled={product.stock <= 0 || isAddingItem}
                           onClick={(e) => handleAddToCart(e, product.id)}
-                          style={{ borderRadius: 'var(--radius-full)', width: '34px', height: '34px', padding: 0 }}
+                          style={{ borderRadius: 'var(--radius-full)', width: '38px', height: '38px', padding: 0 }}
                           title="Thêm vào giỏ"
                         >
-                          <ShoppingCart size={15} />
+                          <ShoppingCart size={16} />
                         </Button>
                       </div>
                     </div>

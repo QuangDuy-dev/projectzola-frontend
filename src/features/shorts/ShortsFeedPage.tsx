@@ -8,7 +8,66 @@ import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { useMediaBlobUrl } from '../../utils/mediaBlob';
 import { formatRelativeTime } from '../../utils/formatters';
+
+interface ShortVideoItemProps {
+  url?: string | null;
+  thumbnailUrl?: string | null;
+  isCurrent: boolean;
+  shouldPreload: boolean;
+  isMuted: boolean;
+  onVideoRef: (el: HTMLVideoElement | null) => void;
+}
+
+const ShortVideoItem: React.FC<ShortVideoItemProps> = ({
+  url,
+  thumbnailUrl,
+  isCurrent,
+  shouldPreload,
+  isMuted,
+  onVideoRef,
+}) => {
+  const resolvedUrl = resolveMediaUrl(url);
+  const resolvedPoster = resolveMediaUrl(thumbnailUrl);
+
+  const { blobUrl: videoBlobUrl } = useMediaBlobUrl(shouldPreload ? resolvedUrl : null);
+  const { blobUrl: posterBlobUrl } = useMediaBlobUrl(shouldPreload ? resolvedPoster : null);
+
+  const internalRef = useRef<HTMLVideoElement | null>(null);
+
+  return (
+    <video
+      ref={(el) => {
+        internalRef.current = el;
+        onVideoRef(el);
+      }}
+      src={videoBlobUrl || undefined}
+      poster={posterBlobUrl || undefined}
+      preload={isCurrent ? 'auto' : shouldPreload ? 'metadata' : 'none'}
+      loop
+      playsInline
+      muted={isMuted}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        position: 'absolute',
+        inset: 0,
+        opacity: isCurrent ? 1 : 0,
+        pointerEvents: isCurrent ? 'auto' : 'none',
+        transition: 'opacity 0.2s ease',
+      }}
+      onClick={() => {
+        const el = internalRef.current;
+        if (el) {
+          if (el.paused) el.play();
+          else el.pause();
+        }
+      }}
+    />
+  );
+};
 
 export const ShortsFeedPage: React.FC = () => {
   const { videos, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, error, refetch, toggleReaction } =
@@ -108,33 +167,15 @@ export const ShortsFeedPage: React.FC = () => {
           const shouldPreload = Math.abs(idx - currentIndex) <= 1;
 
           return (
-            <video
+            <ShortVideoItem
               key={post.id}
-              ref={(el) => {
+              url={vMedia.url}
+              thumbnailUrl={vMedia.thumbnailUrl}
+              isCurrent={isCurrent}
+              shouldPreload={shouldPreload}
+              isMuted={isMuted}
+              onVideoRef={(el) => {
                 videoRefs.current[idx] = el;
-              }}
-              src={resolveMediaUrl(vMedia.url) || undefined}
-              poster={resolveMediaUrl(vMedia.thumbnailUrl) || undefined}
-              preload={isCurrent ? 'auto' : shouldPreload ? 'metadata' : 'none'}
-              loop
-              playsInline
-              muted={isMuted}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                position: 'absolute',
-                inset: 0,
-                opacity: isCurrent ? 1 : 0,
-                pointerEvents: isCurrent ? 'auto' : 'none',
-                transition: 'opacity 0.2s ease',
-              }}
-              onClick={() => {
-                const el = videoRefs.current[idx];
-                if (el) {
-                  if (el.paused) el.play();
-                  else el.pause();
-                }
               }}
             />
           );

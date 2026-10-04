@@ -31,80 +31,122 @@ export const SocialFeedPage: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '680px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Social Post Composer Box (Facebook / Zalo Style) */}
-      <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      {/* Social Post Creator Card (Modern Social Network Style) */}
+      <Card
+        style={{
+          padding: '1.125rem 1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.875rem',
+          borderRadius: 'var(--radius-xl)',
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid rgba(226, 232, 240, 0.75)',
+          boxShadow: 'var(--shadow-card)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div
             style={{
-              width: '40px',
-              height: '40px',
+              width: '44px',
+              height: '44px',
               borderRadius: '50%',
               overflow: 'hidden',
               flexShrink: 0,
-              border: '2px solid var(--color-primary-light)',
+              padding: '2px',
+              background: 'var(--color-primary-gradient)',
+              boxShadow: '0 2px 8px rgba(255, 90, 0, 0.2)',
             }}
           >
-            <SafeImage src={user?.avatarUrl} alt={user?.displayName || 'User'} />
+            <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', backgroundColor: '#ffffff' }}>
+              <SafeImage src={user?.avatarUrl} alt={user?.displayName || 'User'} />
+            </div>
           </div>
           <div
             onClick={() => setIsCreateModalOpen(true)}
             style={{
               flex: 1,
-              backgroundColor: 'var(--color-surface-hover)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-pill)',
-              padding: '0.6rem 1rem',
-              fontSize: '0.875rem',
+              backgroundColor: 'var(--color-background)',
+              border: '1px solid var(--color-border-strong)',
+              borderRadius: 'var(--radius-full)',
+              padding: '0.7rem 1.125rem',
+              fontSize: '0.9rem',
               color: 'var(--color-text-muted)',
               cursor: 'pointer',
               userSelect: 'none',
-              transition: 'background-color var(--dur-feedback) var(--ease-out)',
+              transition: 'all var(--dur-feedback) var(--ease-out)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+              e.currentTarget.style.borderColor = 'var(--color-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-background)';
+              e.currentTarget.style.borderColor = 'var(--color-border-strong)';
             }}
           >
-            {user?.displayName ? `${user.displayName} ơi, bạn đang chia sẻ điều gì hôm nay?` : 'Bạn đang nghĩ gì thế?'}
+            <span>{user?.displayName ? `${user.displayName} ơi, bạn muốn chia sẻ điều gì hôm nay?` : 'Bạn muốn chia sẻ điều gì hôm nay?'}</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', fontWeight: 600 }}>Tạo bài</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', borderTop: '1px solid var(--color-border-subtle)', paddingTop: '0.75rem' }}>
+        {/* Creator Micro-Action Pills */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderTop: '1px solid rgba(226, 232, 240, 0.6)',
+            paddingTop: '0.75rem',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+          }}
+        >
           <button
             onClick={() => setIsCreateModalOpen(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              color: 'var(--color-text-muted)',
+              backgroundColor: 'var(--tint-media-bg)',
+              color: 'var(--tint-media-text)',
               fontSize: '0.8125rem',
               fontWeight: 600,
-              padding: '0.35rem 0.6rem',
-              borderRadius: 'var(--radius-sm)',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid rgba(2, 132, 199, 0.15)',
               transition: 'all var(--dur-feedback) var(--ease-out)',
             }}
           >
-            <ImageIcon size={18} style={{ color: '#10b981' }} />
+            <ImageIcon size={16} />
             <span>Ảnh / Video</span>
           </button>
 
           <button
-            onClick={() => navigate('/shorts')}
+            onClick={() => navigate('/shop')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              color: 'var(--color-text-muted)',
+              backgroundColor: 'var(--tint-deal-bg)',
+              color: 'var(--tint-deal-text)',
               fontSize: '0.8125rem',
               fontWeight: 600,
-              padding: '0.35rem 0.6rem',
-              borderRadius: 'var(--radius-sm)',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid rgba(255, 90, 0, 0.15)',
               transition: 'all var(--dur-feedback) var(--ease-out)',
             }}
           >
-            <Flame size={18} style={{ color: 'var(--color-primary)' }} />
-            <span>Khám phá Shorts</span>
+            <Flame size={16} />
+            <span>Gợi ý Deal Mall</span>
           </button>
 
           <Button variant="primary" size="sm" onClick={() => setIsCreateModalOpen(true)}>
             <PlusCircle size={16} />
-            <span>Đăng bài</span>
+            <span>Đăng bài viết</span>
           </Button>
         </div>
       </Card>

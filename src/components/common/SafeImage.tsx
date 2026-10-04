@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { useMediaBlobUrl } from '../../utils/mediaBlob';
 
 export interface SafeImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   src?: string | null;
@@ -16,8 +17,9 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 }) => {
   const [hasError, setHasError] = useState(false);
   const resolved = resolveMediaUrl(src);
+  const { blobUrl, isError, isLoading } = useMediaBlobUrl(resolved);
 
-  if (!resolved || hasError) {
+  if (!resolved || hasError || isError) {
     if (fallbackSrc) {
       return (
         <img
@@ -49,11 +51,29 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     );
   }
 
+  // If still loading ngrok blob, show subtle skeleton placeholder to prevent direct headerless request
+  if (isLoading || !blobUrl) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          backgroundColor: '#f1f5f9',
+          borderRadius: 'inherit',
+          ...style,
+        }}
+      />
+    );
+  }
+
   return (
     <img
-      src={resolved}
+      src={blobUrl}
       alt={alt}
-      style={{ objectFit: 'cover', ...style }}
+      style={{
+        objectFit: 'cover',
+        ...style,
+      }}
       onError={() => setHasError(true)}
       {...props}
     />

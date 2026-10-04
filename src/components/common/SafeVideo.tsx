@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { useMediaBlobUrl } from '../../utils/mediaBlob';
 
 export interface SafeVideoProps extends Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'> {
   src?: string | null;
@@ -14,7 +15,10 @@ export const SafeVideo = React.forwardRef<HTMLVideoElement, SafeVideoProps>(
     const resolvedVideo = resolveMediaUrl(targetUrl);
     const resolvedPoster = resolveMediaUrl(posterUrl);
 
-    if (!resolvedVideo) {
+    const { blobUrl: videoBlobUrl, isError: isVideoError } = useMediaBlobUrl(resolvedVideo);
+    const { blobUrl: posterBlobUrl } = useMediaBlobUrl(resolvedPoster);
+
+    if (!resolvedVideo || isVideoError) {
       return (
         <div
           style={{
@@ -43,8 +47,8 @@ export const SafeVideo = React.forwardRef<HTMLVideoElement, SafeVideoProps>(
             forwardedRef.current = el;
           }
         }}
-        src={resolvedVideo}
-        poster={resolvedPoster || undefined}
+        src={videoBlobUrl || undefined}
+        poster={posterBlobUrl || undefined}
         preload={preload}
         controls={controls}
         playsInline

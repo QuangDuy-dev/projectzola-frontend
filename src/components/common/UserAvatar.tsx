@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { useMediaBlobUrl } from '../../utils/mediaBlob';
 
 export interface UserAvatarProps {
   userId?: string;
@@ -33,6 +34,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   const navigate = useNavigate();
 
   const resolved = resolveMediaUrl(avatarUrl);
+  const { blobUrl, isLoading, isError } = useMediaBlobUrl(resolved);
   const isClickable = clickable && !!userId;
   const initials = getInitials(displayName);
 
@@ -63,7 +65,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     ...style,
   };
 
-  if (!resolved || hasError) {
+  if (!resolved || hasError || isError || isLoading || !blobUrl) {
     return (
       <div
         style={containerStyle}
@@ -78,7 +80,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   return (
     <div style={containerStyle} onClick={handleClick} title={displayName || 'Người dùng'}>
       <img
-        src={resolved}
+        src={blobUrl}
         alt={displayName || 'Avatar'}
         onError={() => setHasError(true)}
         style={{

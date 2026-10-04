@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Terminal,
   X,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCart } from '../../hooks/useCart';
@@ -96,11 +97,9 @@ export const MainLayout: React.FC = () => {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-background)' }}>
       {/* Header */}
       <header
+        className="glass-header"
         style={{
           height: 'var(--header-height)',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid var(--color-border)',
           position: 'sticky',
           top: 0,
           zIndex: 100,
@@ -120,9 +119,10 @@ export const MainLayout: React.FC = () => {
               justifyContent: 'center',
               color: 'var(--color-text)',
               padding: '0.4rem',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-strong)',
               backgroundColor: 'var(--color-surface)',
+              boxShadow: 'var(--shadow-sm)',
             }}
             aria-label="Toggle menu"
           >
@@ -132,30 +132,90 @@ export const MainLayout: React.FC = () => {
           {/* Logo Brand */}
           <div
             onClick={() => navigate('/feed')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer' }}
           >
             <div
               style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'linear-gradient(135deg, var(--color-primary) 0%, #ff7824 100%)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'var(--color-primary-gradient)',
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: '1.2rem',
+                fontSize: '1.25rem',
                 boxShadow: 'var(--shadow-glow)',
+                position: 'relative',
               }}
             >
               Z
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: '#0068ff',
+                  border: '1.5px solid #ffffff',
+                }}
+              />
             </div>
-            <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text)', letterSpacing: '-0.5px' }}>
-              Zola<span style={{ color: 'var(--color-primary)' }}>.vn</span>
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text)', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
+                Zola<span style={{ color: 'var(--color-primary)' }}>.vn</span>
+              </span>
+              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                Social • Shopping
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* Center Desktop Quick Search Bar */}
+        {!isMobile && (
+          <div
+            onClick={() => navigate('/shop')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.625rem',
+              padding: '0.45rem 1rem',
+              backgroundColor: 'var(--color-surface)',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid var(--color-border-strong)',
+              boxShadow: 'var(--shadow-sm)',
+              width: '320px',
+              cursor: 'pointer',
+              color: 'var(--color-text-muted)',
+              fontSize: '0.8125rem',
+              transition: 'all var(--dur-feedback) var(--ease-out)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-strong)')}
+          >
+            <Search size={15} color="var(--color-primary)" />
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Tìm bài viết, video, deal hot...
+            </span>
+            <kbd
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                padding: '0.1rem 0.35rem',
+                borderRadius: '4px',
+                backgroundColor: 'var(--color-item-hover)',
+                color: 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              ⌘K
+            </kbd>
+          </div>
+        )}
 
         {/* User profile & Quick actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -340,12 +400,13 @@ export const MainLayout: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '0.625rem 0.75rem',
-                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.625rem 0.85rem',
+                    borderRadius: 'var(--radius-lg)',
                     fontSize: '0.875rem',
                     fontWeight: isActive ? 700 : 500,
                     color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
                     backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                    boxShadow: isActive ? 'inset 3.5px 0 0 var(--color-primary)' : 'none',
                     transition: 'all var(--dur-feedback) var(--ease-out)',
                   })}
                 >
@@ -371,12 +432,13 @@ export const MainLayout: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.75rem',
-                      padding: '0.625rem 0.75rem',
-                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.625rem 0.85rem',
+                      borderRadius: 'var(--radius-lg)',
                       fontSize: '0.875rem',
                       fontWeight: isActive ? 700 : 500,
                       color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
                       backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                      boxShadow: isActive ? 'inset 3.5px 0 0 var(--color-primary)' : 'none',
                     })}
                   >
                     <Store size={18} />
@@ -396,12 +458,13 @@ export const MainLayout: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.75rem',
-                      padding: '0.625rem 0.75rem',
-                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.625rem 0.85rem',
+                      borderRadius: 'var(--radius-lg)',
                       fontSize: '0.875rem',
                       fontWeight: isActive ? 700 : 500,
                       color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
                       backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                      boxShadow: isActive ? 'inset 3.5px 0 0 var(--color-primary)' : 'none',
                     })}
                   >
                     <Truck size={18} />
@@ -421,12 +484,13 @@ export const MainLayout: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.75rem',
-                      padding: '0.625rem 0.75rem',
-                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.625rem 0.85rem',
+                      borderRadius: 'var(--radius-lg)',
                       fontSize: '0.875rem',
                       fontWeight: isActive ? 700 : 500,
                       color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
                       backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                      boxShadow: isActive ? 'inset 3.5px 0 0 var(--color-primary)' : 'none',
                     })}
                   >
                     <ShieldCheck size={18} />
@@ -444,12 +508,13 @@ export const MainLayout: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem',
-                  padding: '0.625rem 0.75rem',
-                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.625rem 0.85rem',
+                  borderRadius: 'var(--radius-lg)',
                   fontSize: '0.875rem',
                   fontWeight: isActive ? 700 : 500,
                   color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
                   backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                  boxShadow: isActive ? 'inset 3.5px 0 0 var(--color-primary)' : 'none',
                 })}
               >
                 <Terminal size={18} />
@@ -666,21 +731,18 @@ export const MainLayout: React.FC = () => {
       {/* Mobile Bottom Navigation Bar (Fixed Native-Feel) */}
       {isMobile && (
         <nav
+          className="glass-dock"
           style={{
             position: 'fixed',
             bottom: 0,
             left: 0,
             right: 0,
             height: 'var(--bottom-nav-height)',
-            backgroundColor: 'rgba(255, 255, 255, 0.96)',
-            backdropFilter: 'blur(16px)',
-            borderTop: '1px solid var(--color-border)',
             zIndex: 100,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-around',
             padding: '0 0.5rem',
-            boxShadow: '0 -4px 16px rgba(15, 23, 42, 0.05)',
           }}
         >
           {mobileBottomTabs.map((tab) => {
@@ -701,10 +763,22 @@ export const MainLayout: React.FC = () => {
                   textDecoration: 'none',
                   padding: '6px 12px',
                   transition: 'color var(--dur-feedback) var(--ease-out), transform var(--dur-feedback) var(--ease-out)',
+                  transform: isActive ? 'scale(1.05)' : 'none',
                 }}
               >
                 {tab.icon}
                 <span>{tab.label}</span>
+                <div
+                  style={{
+                    width: '4px',
+                    height: '4px',
+                    borderRadius: '50%',
+                    backgroundColor: isActive ? 'var(--color-primary)' : 'transparent',
+                    boxShadow: isActive ? '0 0 6px var(--color-primary)' : 'none',
+                    marginTop: '2px',
+                    transition: 'all var(--dur-feedback) var(--ease-out)',
+                  }}
+                />
               </NavLink>
             );
           })}

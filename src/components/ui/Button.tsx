@@ -21,17 +21,18 @@ export const Button: React.FC<ButtonProps> = ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.5rem',
-    fontWeight: 500,
+    fontWeight: 600,
     borderRadius: 'var(--radius-md)',
-    transition: 'background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease',
+    transition: 'transform var(--dur-feedback) var(--ease-out), background-color var(--dur-feedback) var(--ease-out), border-color var(--dur-feedback) var(--ease-out), box-shadow var(--dur-feedback) var(--ease-out), opacity var(--dur-feedback) var(--ease-out)',
     cursor: disabled || isLoading ? 'not-allowed' : 'pointer',
     opacity: disabled || isLoading ? 0.6 : 1,
     border: '1px solid transparent',
+    userSelect: 'none',
   };
 
   const sizeStyles: Record<string, React.CSSProperties> = {
-    sm: { padding: '0.375rem 0.75rem', fontSize: '0.875rem' },
-    md: { padding: '0.5rem 1rem', fontSize: '0.9375rem' },
+    sm: { padding: '0.375rem 0.75rem', fontSize: '0.8125rem' },
+    md: { padding: '0.5rem 1rem', fontSize: '0.875rem' },
     lg: { padding: '0.75rem 1.5rem', fontSize: '1rem' },
   };
 
@@ -39,6 +40,7 @@ export const Button: React.FC<ButtonProps> = ({
     primary: {
       backgroundColor: 'var(--color-primary)',
       color: 'var(--color-primary-text)',
+      boxShadow: 'var(--shadow-glow)',
     },
     secondary: {
       backgroundColor: 'var(--color-surface-hover)',
@@ -69,7 +71,26 @@ export const Button: React.FC<ButtonProps> = ({
         ...variantStyles[variant],
         ...style,
       }}
-      className={className}
+      className={`btn-interactive ${className}`}
+      onMouseDown={(e) => {
+        if (!disabled && !isLoading) {
+          e.currentTarget.style.transform = 'scale(0.96)';
+        }
+      }}
+      onMouseUp={(e) => {
+        e.currentTarget.style.transform = 'none';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'none';
+      }}
+      onTouchStart={(e) => {
+        if (!disabled && !isLoading) {
+          e.currentTarget.style.transform = 'scale(0.96)';
+        }
+      }}
+      onTouchEnd={(e) => {
+        e.currentTarget.style.transform = 'none';
+      }}
       {...props}
     >
       {isLoading && (

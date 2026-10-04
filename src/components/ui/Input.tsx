@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -7,15 +7,16 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, style, id, ...props }, ref) => {
+  ({ label, error, helperText, style, id, onFocus, onBlur, ...props }, ref) => {
     const inputId = id || (label ? `input-${label.toLowerCase().replace(/\s+/g, '-')}` : undefined);
+    const [isFocused, setIsFocused] = useState(false);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%' }}>
         {label && (
           <label
             htmlFor={inputId}
-            style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text)' }}
+            style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text)' }}
           >
             {label}
           </label>
@@ -25,20 +26,29 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           style={{
             width: '100%',
-            padding: '0.5rem 0.75rem',
+            padding: '0.55rem 0.85rem',
             borderRadius: 'var(--radius-md)',
-            border: `1px solid ${error ? 'var(--color-danger)' : 'var(--color-border)'}`,
+            border: `1px solid ${error ? 'var(--color-danger)' : isFocused ? 'var(--color-primary)' : 'var(--color-border)'}`,
             backgroundColor: 'var(--color-surface)',
             color: 'var(--color-text)',
             outline: 'none',
-            fontSize: '0.9375rem',
-            transition: 'border-color 0.15s ease',
+            fontSize: '0.875rem',
+            boxShadow: isFocused && !error ? '0 0 0 3px var(--color-primary-glow)' : 'none',
+            transition: 'border-color var(--dur-feedback) var(--ease-out), box-shadow var(--dur-feedback) var(--ease-out)',
             ...style,
+          }}
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
           }}
           {...props}
         />
         {error && (
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-danger)' }}>{error}</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-danger)', fontWeight: 500 }}>{error}</span>
         )}
         {helperText && !error && (
           <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{helperText}</span>

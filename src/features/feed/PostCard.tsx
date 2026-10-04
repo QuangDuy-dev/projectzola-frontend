@@ -50,7 +50,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
   const videos = post.media.filter((m) => m.mediaType === 'Video');
 
   return (
-    <Card style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <Card style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
       {/* Author Header */}
       <UserIdentity
         userId={post.author?.id || post.userId}
@@ -62,13 +62,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
       />
 
       {/* Post Text */}
-      <p style={{ fontSize: '0.9375rem', whiteSpace: 'pre-line', color: 'var(--color-text)' }}>
+      <p style={{ fontSize: '0.9375rem', lineHeight: '1.6', whiteSpace: 'pre-line', color: 'var(--color-text)' }}>
         {post.content}
       </p>
 
       {/* Media: Video */}
       {videos.length > 0 && (
-        <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', maxHeight: '450px' }}>
+        <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', maxHeight: '450px', boxShadow: 'var(--shadow-sm)' }}>
           <SafeVideo videoUrl={videos[0].url} posterUrl={videos[0].thumbnailUrl} />
         </div>
       )}
@@ -82,11 +82,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
             gap: '0.5rem',
             borderRadius: 'var(--radius-md)',
             overflow: 'hidden',
+            boxShadow: 'var(--shadow-sm)',
           }}
         >
           {images.map((img) => (
             <div key={img.id} style={{ height: images.length === 1 ? '380px' : '200px' }}>
-              <SafeImage src={img.url} alt="post media" style={{ width: '100%', height: '100%' }} />
+              <SafeImage src={img.url} alt="post media" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
           ))}
         </div>
@@ -148,11 +149,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
               placeholder="Viết bình luận..."
               style={{
                 flex: 1,
-                padding: '0.5rem 0.75rem',
-                borderRadius: 'var(--radius-md)',
+                padding: '0.5rem 0.85rem',
+                borderRadius: 'var(--radius-pill)',
                 border: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-surface-hover)',
                 outline: 'none',
                 fontSize: '0.875rem',
+                transition: 'border-color var(--dur-feedback) var(--ease-out)',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-primary)';
+                e.currentTarget.style.backgroundColor = '#ffffff';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
               }}
             />
             <Button type="submit" size="sm" isLoading={addCommentMutation.isPending}>
@@ -194,15 +205,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onToggleReaction }) =>
                         onClick={() => commenterId && navigate(`/users/${commenterId}`)}
                         style={{
                           fontSize: '0.8125rem',
-                          fontWeight: 600,
+                          fontWeight: 700,
                           color: 'var(--color-text)',
                           cursor: commenterId ? 'pointer' : 'default',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (commenterId) (e.currentTarget as HTMLElement).style.textDecoration = 'underline';
-                        }}
-                        onMouseLeave={(e) => {
-                          if (commenterId) (e.currentTarget as HTMLElement).style.textDecoration = 'none';
                         }}
                       >
                         {commenterName}

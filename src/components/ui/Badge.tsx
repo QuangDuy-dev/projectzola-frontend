@@ -24,10 +24,11 @@ export const Badge: React.FC<BadgeProps> = ({
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        padding: '0.125rem 0.5rem',
-        fontSize: '0.75rem',
-        fontWeight: 600,
+        padding: '0.15rem 0.55rem',
+        fontSize: '0.72rem',
+        fontWeight: 700,
         borderRadius: 'var(--radius-full)',
+        letterSpacing: '0.2px',
         ...variantStyles[variant],
         ...style,
       }}

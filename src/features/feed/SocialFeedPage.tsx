@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { PlusCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Flame, Image as ImageIcon, PlusCircle } from 'lucide-react';
 import { useSocialFeed } from '../../hooks/useFeed';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { SafeImage } from '../../components/common/SafeImage';
 import { PostCard } from './PostCard';
 import { CreatePostModal } from './CreatePostModal';
 import { LoadingState } from '../../components/common/LoadingState';
@@ -10,6 +14,9 @@ import { EmptyState } from '../../components/common/EmptyState';
 
 export const SocialFeedPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
   const {
     posts,
     isLoading,
@@ -23,33 +30,87 @@ export const SocialFeedPage: React.FC = () => {
   } = useSocialFeed();
 
   return (
-    <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Feed Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: 'var(--color-surface)',
-          padding: '1rem 1.25rem',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Bảng tin mạng xã hội</h2>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-            Cập nhật tin mới từ những người bạn theo dõi
-          </p>
+    <div style={{ maxWidth: '680px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* Social Post Composer Box (Facebook / Zalo Style) */}
+      <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              overflow: 'hidden',
+              flexShrink: 0,
+              border: '2px solid var(--color-primary-light)',
+            }}
+          >
+            <SafeImage src={user?.avatarUrl} alt={user?.displayName || 'User'} />
+          </div>
+          <div
+            onClick={() => setIsCreateModalOpen(true)}
+            style={{
+              flex: 1,
+              backgroundColor: 'var(--color-surface-hover)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-pill)',
+              padding: '0.6rem 1rem',
+              fontSize: '0.875rem',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              userSelect: 'none',
+              transition: 'background-color var(--dur-feedback) var(--ease-out)',
+            }}
+          >
+            {user?.displayName ? `${user.displayName} ơi, bạn đang chia sẻ điều gì hôm nay?` : 'Bạn đang nghĩ gì thế?'}
+          </div>
         </div>
-        <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>
-          <PlusCircle size={18} />
-          Đăng bài
-        </Button>
-      </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', borderTop: '1px solid var(--color-border-subtle)', paddingTop: '0.75rem' }}>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'var(--color-text-muted)',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              padding: '0.35rem 0.6rem',
+              borderRadius: 'var(--radius-sm)',
+              transition: 'all var(--dur-feedback) var(--ease-out)',
+            }}
+          >
+            <ImageIcon size={18} style={{ color: '#10b981' }} />
+            <span>Ảnh / Video</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/shorts')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'var(--color-text-muted)',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              padding: '0.35rem 0.6rem',
+              borderRadius: 'var(--radius-sm)',
+              transition: 'all var(--dur-feedback) var(--ease-out)',
+            }}
+          >
+            <Flame size={18} style={{ color: 'var(--color-primary)' }} />
+            <span>Khám phá Shorts</span>
+          </button>
+
+          <Button variant="primary" size="sm" onClick={() => setIsCreateModalOpen(true)}>
+            <PlusCircle size={16} />
+            <span>Đăng bài</span>
+          </Button>
+        </div>
+      </Card>
 
       {/* Feed Content */}
-      {isLoading && <LoadingState message="Đang tải bảng tin..." />}
+      {isLoading && <LoadingState message="Đang tải bảng tin mạng xã hội..." />}
 
       {error && (
         <ErrorState

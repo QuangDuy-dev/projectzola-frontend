@@ -62,6 +62,41 @@ export const ShopOwnerDashboardPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'revenue'>('orders');
 
+  // Create shop modal state (when ShopOwner has no shop yet)
+  const [isCreateShopOpen, setIsCreateShopOpen] = useState(false);
+  const [newShopName, setNewShopName] = useState('');
+  const [newShopDescription, setNewShopDescription] = useState('');
+  const [createShopError, setCreateShopError] = useState<string | null>(null);
+
+  const createShopMutation = useMutation({
+    mutationFn: shopOwnerApi.createShop,
+    onSuccess: () => {
+      setIsCreateShopOpen(false);
+      setNewShopName('');
+      setNewShopDescription('');
+      setCreateShopError(null);
+      queryClient.invalidateQueries({ queryKey: ['shops', 'all'] });
+      showFeedback('success', 'Đã tạo cửa hàng mới thành công!');
+    },
+    onError: (err: Error) => {
+      setCreateShopError(err.message || 'Không thể tạo cửa hàng. Vui lòng thử lại.');
+    },
+  });
+
+  const handleCreateShopSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newShopName.trim();
+    if (!cleanName) {
+      setCreateShopError('Vui lòng nhập tên cửa hàng.');
+      return;
+    }
+    setCreateShopError(null);
+    createShopMutation.mutate({
+      name: cleanName,
+      description: newShopDescription.trim() || undefined,
+    });
+  };
+
   // Feedback banner
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const showFeedback = (type: 'success' | 'error', message: string) => {
@@ -369,16 +404,71 @@ export const ShopOwnerDashboardPage: React.FC = () => {
           description={
             isAdmin
               ? 'Để quản lý tất cả cửa hàng, đơn hàng, sản phẩm và doanh thu toàn sàn, vui lòng truy cập Admin Dashboard.'
-              : 'Tài khoản của bạn hiện chưa được liên kết với cửa hàng nào trên hệ thống.'
+              : 'Hãy tạo cửa hàng đầu tiên của bạn để bắt đầu đăng sản phẩm và quản lý đơn hàng.'
           }
           action={
             isAdmin ? (
               <Button variant="primary" onClick={() => navigate('/admin')}>
                 Đi tới Admin Dashboard
               </Button>
-            ) : undefined
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setNewShopName(user?.displayName ? `Shop của ${user.displayName}` : '');
+                  setCreateShopError(null);
+                  setIsCreateShopOpen(true);
+                }}
+              >
+                <Plus size={16} /> Tạo cửa hàng mới
+              </Button>
+            )
           }
         />
+
+        <Modal
+          isOpen={isCreateShopOpen}
+          onClose={() => setIsCreateShopOpen(false)}
+          title="Tạo cửa hàng mới"
+        >
+          <form onSubmit={handleCreateShopSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {createShopError && (
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-danger-bg)',
+                  color: 'var(--color-danger)',
+                  fontSize: '0.875rem',
+                }}
+              >
+                {createShopError}
+              </div>
+            )}
+            <Input
+              label="Tên cửa hàng"
+              value={newShopName}
+              onChange={(e) => setNewShopName(e.target.value)}
+              placeholder="Ví dụ: Cửa hàng Thời Trang"
+              required
+            />
+            <Textarea
+              label="Mô tả cửa hàng (tùy chọn)"
+              value={newShopDescription}
+              onChange={(e) => setNewShopDescription(e.target.value)}
+              placeholder="Giới thiệu ngắn gọn về cửa hàng và sản phẩm của bạn..."
+              rows={3}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <Button type="button" variant="outline" onClick={() => setIsCreateShopOpen(false)}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="primary" isLoading={createShopMutation.isPending}>
+                <Plus size={16} /> Tạo cửa hàng
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     );
   }

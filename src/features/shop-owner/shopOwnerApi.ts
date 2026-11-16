@@ -36,6 +36,11 @@ export const shopOwnerApi = {
     return res.data.data!;
   },
 
+  async createShop(data: { name: string; description?: string }): Promise<ShopDto> {
+    const res = await apiClient.post<ApiResponse<ShopDto>>('/api/shops', data);
+    return res.data.data!;
+  },
+
   async getCategories(): Promise<CategoryDto[]> {
     const res = await apiClient.get<ApiResponse<CategoryDto[]>>('/api/categories');
     return res.data.data ?? [];

@@ -13,7 +13,6 @@ export function useAuth() {
     mutationFn: authService.login,
     onSuccess: (data) => {
       setAuth(data.accessToken, data.user);
-      chatHubClient.start();
       queryClient.clear();
       navigate('/feed');
     },
@@ -23,14 +22,13 @@ export function useAuth() {
     mutationFn: authService.register,
     onSuccess: (data) => {
       setAuth(data.accessToken, data.user);
-      chatHubClient.start();
       queryClient.clear();
       navigate('/feed');
     },
   });
 
   const meQuery = useQuery({
-    queryKey: ['auth', 'me'],
+    queryKey: ['auth', 'me', user?.id],
     queryFn: authService.getMe,
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,

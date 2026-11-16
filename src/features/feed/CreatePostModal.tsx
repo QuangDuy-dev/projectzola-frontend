@@ -19,6 +19,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
+      if (filesArray.some((file) => file.size > (file.type.startsWith('video/') ? 200 : 10) * 1024 * 1024)) {
+        setError('Video tối đa 200 MB; mỗi ảnh tối đa 10 MB.');
+        return;
+      }
       const isVideo = filesArray.some((f) => f.type.startsWith('video/'));
 
       if (isVideo && filesArray.length > 1) {

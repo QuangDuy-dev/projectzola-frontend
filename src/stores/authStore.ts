@@ -9,6 +9,7 @@ interface AuthState {
   setAuth: (token: string, user: UserInfoDto) => void;
   clearAuth: () => void;
   updateUser: (user: Partial<UserInfoDto>) => void;
+  verifySession: (token: string, user: UserInfoDto) => void;
 }
 
 const STORAGE_KEY = 'mysocialapp_auth';
@@ -37,6 +38,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: initial.token,
   user: initial.user,
   isAuthenticated: !!initial.token,
+
+  verifySession: (token, user) => {
+    const current = useAuthStore.getState();
+    if (current.token === token && current.user?.id === user.id) current.updateUser(user);
+  },
 
   setAuth: (token: string, user: UserInfoDto) => {
     try {

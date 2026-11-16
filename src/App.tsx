@@ -18,26 +18,27 @@ const queryClient = new QueryClient({
 
 export const App: React.FC = () => {
   const token = useAuthStore((s) => s.token);
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const clearAuth = useAuthStore((s) => s.clearAuth);
 
   // Sync / verify user session on initial boot if token exists
   useEffect(() => {
+    let cancelled = false;
+    queryClient.clear();
     if (token) {
       chatHubClient.start();
       authService
         .getMe()
         .then((user) => {
-          setAuth(token, user);
+          if (!cancelled) useAuthStore.getState().verifySession(token, user);
         })
-        .catch(() => {
-          // If token is invalid / expired, clear session
-          clearAuth();
-          chatHubClient.stop();
+        .catch((error) => {
+          if (!cancelled && useAuthStore.getState().token === token && error.statusCode === 401) {
+            useAuthStore.getState().clearAuth();
+          }
         });
     } else {
       chatHubClient.stop();
     }
+    return () => { cancelled = true; void chatHubClient.stop(); };
   }, [token]);
 
   return (

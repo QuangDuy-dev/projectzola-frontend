@@ -90,4 +90,26 @@ describe('useAuthStore', () => {
     expect(state.user?.bio).toBe('New bio content');
     expect(state.user?.username).toBe('testuser'); // Preserved original
   });
+
+  it('ignores an old verification after another account logs in', () => {
+    const accountB = { ...mockUser, id: 'account-b', username: 'user-b' };
+    useAuthStore.getState().setAuth('token-a', mockUser);
+    useAuthStore.getState().setAuth('token-b', accountB);
+    useAuthStore.getState().verifySession('token-a', mockUser);
+    expect(useAuthStore.getState().user).toEqual(accountB);
+    expect(useAuthStore.getState().token).toBe('token-b');
+  });
+
+  it('rejects a different identity returned for the active token', () => {
+    useAuthStore.getState().setAuth('token-a', mockUser);
+    useAuthStore.getState().verifySession('token-a', { ...mockUser, id: 'account-b' });
+    expect(useAuthStore.getState().user).toEqual(mockUser);
+  });
+
+  it('does not restore a logged out session from an old response', () => {
+    useAuthStore.getState().setAuth('token-a', mockUser);
+    useAuthStore.getState().clearAuth();
+    useAuthStore.getState().verifySession('token-a', mockUser);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
 });

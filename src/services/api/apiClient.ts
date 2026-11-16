@@ -31,7 +31,7 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error: AxiosError<ApiResponse<any>>) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && error.config?.headers.Authorization === `Bearer ${useAuthStore.getState().accessToken}`) {
       // Clear expired / invalid token
       useAuthStore.getState().clearAuth();
     }

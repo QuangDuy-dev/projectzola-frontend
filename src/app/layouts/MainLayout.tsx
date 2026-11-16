@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
   Bot,
+  FileText,
   Flame,
   Home,
   LogOut,
@@ -14,8 +15,8 @@ import {
   Store,
   Truck,
   User as UserIcon,
+  Users,
   ShieldCheck,
-  Terminal,
   X,
   Search,
 } from 'lucide-react';
@@ -23,6 +24,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCart } from '../../hooks/useCart';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useUiStore } from '../../stores/uiStore';
+import { searchService } from '../../services/api/services';
+import { formatCurrencyVnd } from '../../utils/formatters';
+import type { SearchSuggestionsResponse } from '../../types';
 import { Badge } from '../../components/ui/Badge';
 import { SafeImage } from '../../components/common/SafeImage';
 
@@ -34,6 +38,74 @@ export const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Header Facebook-style Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<SearchSuggestionsResponse | null>(null);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (isMobile) {
+          navigate('/search');
+        } else {
+          searchInputRef.current?.focus();
+          setIsSearchOpen(true);
+        }
+      } else if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+        searchInputRef.current?.blur();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobile, navigate]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setSuggestions(null);
+      setIsLoadingSuggestions(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setIsLoadingSuggestions(true);
+      try {
+        const res = await searchService.getSuggestions(trimmed);
+        setSuggestions(res);
+      } catch {
+        setSuggestions(null);
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    }, 280);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    setIsSearchOpen(false);
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`);
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -175,50 +247,310 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Center Desktop Quick Search Bar */}
+        {/* Center Desktop Facebook-Style Quick Search Bar */}
         {!isMobile && (
-          <div
-            onClick={() => navigate('/shop')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              padding: '0.45rem 1rem',
-              backgroundColor: 'var(--color-surface)',
-              borderRadius: 'var(--radius-full)',
-              border: '1px solid var(--color-border-strong)',
-              boxShadow: 'var(--shadow-sm)',
-              width: '320px',
-              cursor: 'pointer',
-              color: 'var(--color-text-muted)',
-              fontSize: '0.8125rem',
-              transition: 'all var(--dur-feedback) var(--ease-out)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-border-strong)')}
-          >
-            <Search size={15} color="var(--color-primary)" />
-            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Tìm bài viết, video, deal hot...
-            </span>
-            <kbd
+          <div ref={searchContainerRef} style={{ position: 'relative', width: '360px' }}>
+            <form
+              onSubmit={handleSearchSubmit}
               style={{
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                padding: '0.1rem 0.35rem',
-                borderRadius: '4px',
-                backgroundColor: 'var(--color-item-hover)',
-                color: 'var(--color-text-muted)',
-                border: '1px solid var(--color-border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.4rem 0.85rem',
+                backgroundColor: 'var(--color-surface)',
+                borderRadius: 'var(--radius-full)',
+                border: `1px solid ${isSearchOpen ? 'var(--color-primary)' : 'var(--color-border-strong)'}`,
+                boxShadow: isSearchOpen ? '0 0 0 3px var(--color-primary-glow)' : 'var(--shadow-sm)',
+                transition: 'all var(--dur-feedback) var(--ease-out)',
               }}
             >
-              ⌘K
-            </kbd>
+              <Search size={15} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearchOpen(true);
+                }}
+                placeholder="Tìm kiếm trên Zola..."
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text)',
+                  fontSize: '0.84rem',
+                  minWidth: 0,
+                }}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSuggestions(null);
+                    searchInputRef.current?.focus();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-text-muted)',
+                    padding: '2px',
+                    cursor: 'pointer',
+                  }}
+                  aria-label="Xóa từ khóa"
+                >
+                  <X size={14} />
+                </button>
+              ) : (
+                <kbd
+                  style={{
+                    fontSize: '0.6875rem',
+                    fontWeight: 700,
+                    padding: '0.1rem 0.35rem',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--color-item-hover)',
+                    color: 'var(--color-text-muted)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                >
+                  ⌘K
+                </kbd>
+              )}
+            </form>
+
+            {/* Autocomplete Dropdown */}
+            {isSearchOpen && searchQuery.trim().length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: 'var(--color-surface)',
+                  border: '1px solid var(--color-border-strong)',
+                  borderRadius: 'var(--radius-xl)',
+                  boxShadow: 'var(--shadow-lg)',
+                  zIndex: 300,
+                  maxHeight: '440px',
+                  overflowY: 'auto',
+                  padding: '0.5rem',
+                }}
+              >
+                {isLoadingSuggestions ? (
+                  <div style={{ padding: '0.85rem', textAlign: 'center', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                    Đang tìm gợi ý...
+                  </div>
+                ) : (
+                  <>
+                    {/* Users */}
+                    {suggestions?.users && suggestions.users.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Users size={12} /> Mọi người
+                        </div>
+                        {suggestions.users.map((u) => (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setIsSearchOpen(false);
+                              navigate(`/profile/${u.id}`);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.6rem',
+                              padding: '0.45rem 0.55rem',
+                              borderRadius: 'var(--radius-md)',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <div style={{ width: '30px', height: '30px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: 'var(--color-surface-hover)' }}>
+                              <SafeImage src={u.avatarUrl} alt={u.displayName} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {u.displayName}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>@{u.username}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Products */}
+                    {suggestions?.products && suggestions.products.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ShoppingBag size={12} /> Sản phẩm
+                        </div>
+                        {suggestions.products.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setIsSearchOpen(false);
+                              navigate(`/products/${p.id}`);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.6rem',
+                              padding: '0.45rem 0.55rem',
+                              borderRadius: 'var(--radius-md)',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, backgroundColor: 'var(--color-surface-hover)' }}>
+                              <SafeImage src={p.thumbnailUrl} alt={p.name} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {p.name}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+                                {formatCurrencyVnd(p.price)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Shops */}
+                    {suggestions?.shops && suggestions.shops.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Store size={12} /> Cửa hàng
+                        </div>
+                        {suggestions.shops.map((s) => (
+                          <div
+                            key={s.id}
+                            onClick={() => {
+                              setIsSearchOpen(false);
+                              navigate(`/shops/${s.id}`);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.6rem',
+                              padding: '0.45rem 0.55rem',
+                              borderRadius: 'var(--radius-md)',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <div style={{ width: '30px', height: '30px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, backgroundColor: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {s.logoUrl ? <SafeImage src={s.logoUrl} alt={s.name} /> : <Store size={15} color="var(--color-primary)" />}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {s.name}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{s.productCount} sản phẩm</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Posts */}
+                    {suggestions?.posts && suggestions.posts.length > 0 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <FileText size={12} /> Bài viết
+                        </div>
+                        {suggestions.posts.map((post) => (
+                          <div
+                            key={post.id}
+                            onClick={() => {
+                              setIsSearchOpen(false);
+                              navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}&type=posts`);
+                            }}
+                            style={{
+                              padding: '0.45rem 0.55rem',
+                              borderRadius: 'var(--radius-md)',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text)' }}>
+                              {post.displayName || post.username}
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {post.content}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = searchQuery.trim();
+                        if (!trimmed) return;
+                        setIsSearchOpen(false);
+                        navigate(`/search?q=${encodeURIComponent(trimmed)}`);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 0.75rem',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--color-primary-light)',
+                        color: 'var(--color-primary)',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        marginTop: '0.25rem',
+                      }}
+                    >
+                      <Search size={14} />
+                      <span>Xem tất cả kết quả cho "{searchQuery.trim()}"</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* User profile & Quick actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          {isMobile && (
+            <button
+              onClick={() => navigate('/search')}
+              title="Tìm kiếm"
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <Search size={18} />
+            </button>
+          )}
           {/* Quick Cart Icon (always visible) */}
           <button
             onClick={() => navigate('/cart')}
@@ -498,28 +830,6 @@ export const MainLayout: React.FC = () => {
                   </NavLink>
                 </>
               )}
-
-              <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--color-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '1rem 0.75rem 0.25rem' }}>
-                Hệ Thống
-              </span>
-              <NavLink
-                to="/dev/api"
-                style={({ isActive }) => ({
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.625rem 0.85rem',
-                  borderRadius: 'var(--radius-lg)',
-                  fontSize: '0.875rem',
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
-                  backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
-                  boxShadow: isActive ? 'inset 3.5px 0 0 var(--color-primary)' : 'none',
-                })}
-              >
-                <Terminal size={18} />
-                <span>Chẩn Đoán API</span>
-              </NavLink>
             </nav>
           </aside>
         )}
@@ -668,23 +978,6 @@ export const MainLayout: React.FC = () => {
                     <span>Admin Dashboard</span>
                   </NavLink>
                 )}
-
-                <NavLink
-                  to="/dev/api"
-                  onClick={() => setSidebarOpen(false)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    padding: '0.625rem 0.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.875rem',
-                    color: 'var(--color-text-muted)',
-                  }}
-                >
-                  <Terminal size={18} />
-                  <span>Chẩn Đoán API</span>
-                </NavLink>
 
                 {isAuthenticated && (
                   <button

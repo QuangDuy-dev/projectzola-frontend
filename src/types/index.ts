@@ -574,3 +574,80 @@ export interface ChatbotStreamEvent {
     error?: string;
   };
 }
+
+// ==========================================
+// 12. AUTH OTP & PASSWORD TYPES
+// ==========================================
+
+export type OtpPurpose = 'Register' | 'ForgotPassword';
+
+export interface SendOtpRequest {
+  email: string;
+  purpose: OtpPurpose;
+}
+
+export interface SendOtpResponse {
+  message?: string;
+  devOtpHint?: string | null;
+  expiresInMinutes?: number;
+}
+
+export interface VerifyOtpRequest {
+  email: string;
+  code: string;
+  purpose: OtpPurpose;
+}
+
+export interface ForgotPasswordResetRequest {
+  email: string;
+  otpCode: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+// ==========================================
+// 13. UNIFIED SEARCH TYPES
+// ==========================================
+
+export type SearchType = 'all' | 'posts' | 'users' | 'shorts' | 'products' | 'shops';
+export type SearchSort = 'relevance' | 'recent';
+export type SearchDateRange = 'all' | 'today' | 'week' | 'month';
+
+export interface UserSearchDto {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  role: string;
+  followersCount: number;
+  isFollowing?: boolean;
+}
+
+export interface UnifiedSearchParams {
+  q?: string;
+  type?: SearchType;
+  sort?: SearchSort;
+  dateRange?: SearchDateRange;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface UnifiedSearchResponse {
+  users: PagedResult<UserSearchDto>;
+  posts: PagedResult<PostDto>;
+  shorts: PagedResult<PostDto>;
+  products: PagedResult<ProductSearchDto>;
+  shops: PagedResult<ShopSearchDto>;
+}
+
+export interface SearchSuggestionsResponse {
+  users: UserSearchDto[];
+  products: ProductSearchDto[];
+  shops: ShopSearchDto[];
+  posts: PostDto[];
+}

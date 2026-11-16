@@ -21,7 +21,7 @@ import { ProfilePage } from '../../features/profile/ProfilePage';
 import { ShopOwnerDashboardPage } from '../../features/shop-owner/ShopOwnerDashboardPage';
 import { ShipperDashboardPage } from '../../features/shipper/ShipperDashboardPage';
 import { AdminDashboardPage } from '../../features/admin/AdminDashboardPage';
-import { ApiDebugPanel } from '../../features/dev/ApiDebugPanel';
+import { SearchPage } from '../../features/search/SearchPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -47,7 +47,7 @@ export const AppRouter: React.FC = () => {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:userId" element={<ProfilePage />} />
           <Route path="/users/:userId" element={<ProfilePage />} />
-          <Route path="/dev/api" element={<ApiDebugPanel />} />
+          <Route path="/search" element={<SearchPage />} />
 
           {/* Role-Protected Routes */}
           <Route element={<RoleRoute allowedRoles={['ShopOwner', 'Admin']} />}>

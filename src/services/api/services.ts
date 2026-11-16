@@ -5,6 +5,7 @@ import type {
   AuthResponse,
   CartDto,
   CategoryDto,
+  ChangePasswordRequest,
   ChatbotResponse,
   CommentDto,
   ConversationDto,
@@ -16,6 +17,7 @@ import type {
   CursorPagedResult,
   EditMessageRequest,
   FeedPostDto,
+  ForgotPasswordResetRequest,
   MarkReadRequest,
   MessageDeletedDto,
   MessageDto,
@@ -34,10 +36,15 @@ import type {
   PublicUserProfileDto,
   ReactionRequest,
   RevenueDto,
+  SearchSuggestionsResponse,
   SendMessageRequest,
+  SendOtpRequest,
+  SendOtpResponse,
   ShipperProfileDto,
   ShopDto,
   ShopSearchDto,
+  UnifiedSearchParams,
+  UnifiedSearchResponse,
   UpdateCategoryRequest,
   UpdateCommentRequest,
   UpdatePostRequest,
@@ -47,13 +54,20 @@ import type {
   UpdateUserRequest,
   UserDto,
   UserInfoDto,
+  VerifyOtpRequest,
 } from '../../types';
 
 // ==========================================
 // 1. AUTH SERVICE
 // ==========================================
 export const authService = {
-  async register(data: { username: string; email: string; password: string; displayName: string }): Promise<AuthResponse> {
+  async register(data: {
+    username: string;
+    email: string;
+    password: string;
+    displayName: string;
+    otpCode: string;
+  }): Promise<AuthResponse> {
     const res = await apiClient.post<ApiResponse<AuthResponse>>('/api/auth/register', data);
     return res.data.data!;
   },
@@ -66,6 +80,24 @@ export const authService = {
   async getMe(): Promise<UserInfoDto> {
     const res = await apiClient.get<ApiResponse<UserInfoDto>>('/api/auth/me');
     return res.data.data!;
+  },
+
+  async sendOtp(data: SendOtpRequest): Promise<SendOtpResponse> {
+    const res = await apiClient.post<ApiResponse<SendOtpResponse>>('/api/auth/send-otp', data);
+    return res.data.data ?? { message: res.data.message };
+  },
+
+  async verifyOtp(data: VerifyOtpRequest): Promise<{ valid: boolean }> {
+    const res = await apiClient.post<ApiResponse<{ valid: boolean }>>('/api/auth/verify-otp', data);
+    return res.data.data ?? { valid: res.data.success };
+  },
+
+  async forgotPasswordReset(data: ForgotPasswordResetRequest): Promise<void> {
+    await apiClient.post<ApiResponse<unknown>>('/api/auth/forgot-password/reset', data);
+  },
+
+  async changePassword(data: ChangePasswordRequest): Promise<void> {
+    await apiClient.post<ApiResponse<unknown>>('/api/auth/change-password', data);
   },
 };
 
@@ -195,6 +227,7 @@ export const postService = {
     formData.append('file', file);
     const res = await apiClient.post<ApiResponse<PostMediaDto>>(`/api/posts/${id}/media`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 240000, // Includes server-side video validation, transcode and thumbnail.
     });
     return res.data.data!;
   },
@@ -625,6 +658,25 @@ export const chatbotService = {
 
   async checkHealth(): Promise<{ available: boolean; service: string }> {
     const res = await apiClient.get<ApiResponse<{ available: boolean; service: string }>>('/api/chatbot/health');
+    return res.data.data!;
+  },
+};
+
+// ==========================================
+// 15. UNIFIED SEARCH SERVICE
+// ==========================================
+export const searchService = {
+  async unifiedSearch(params: UnifiedSearchParams): Promise<UnifiedSearchResponse> {
+    const res = await apiClient.get<ApiResponse<UnifiedSearchResponse>>('/api/search', {
+      params,
+    });
+    return res.data.data!;
+  },
+
+  async getSuggestions(q: string): Promise<SearchSuggestionsResponse> {
+    const res = await apiClient.get<ApiResponse<SearchSuggestionsResponse>>('/api/search/suggestions', {
+      params: { q },
+    });
     return res.data.data!;
   },
 };

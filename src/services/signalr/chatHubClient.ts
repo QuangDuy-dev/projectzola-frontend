@@ -108,14 +108,17 @@ class ChatHubManager {
   }
 
   public async stop(): Promise<void> {
-    if (this.connection) {
+    const connection = this.connection;
+    this.connection = null;
+    this.isConnecting = false;
+    this.activeConversationId = null;
+    if (connection) {
       try {
-        await this.connection.stop();
+        await connection.stop();
       } catch (err) {
         console.warn('Error stopping SignalR connection:', err);
       } finally {
-        this.connection = null;
-        this.notifyConnection(false);
+        if (!this.connection) this.notifyConnection(false);
       }
     }
   }

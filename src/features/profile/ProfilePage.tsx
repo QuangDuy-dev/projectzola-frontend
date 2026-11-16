@@ -13,9 +13,10 @@ import {
   Send,
   Copy,
   Check,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { chatService, userService } from '../../services/api/services';
+import { authService, chatService, userService } from '../../services/api/services';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import { SafeImage } from '../../components/common/SafeImage';
 import { SafeVideo } from '../../components/common/SafeVideo';
@@ -46,6 +47,14 @@ export const ProfilePage: React.FC = () => {
   const [isFollowListOpen, setIsFollowListOpen] = useState(false);
   const [followListType, setFollowListType] = useState<'followers' | 'following'>('followers');
   const [isCopiedId, setIsCopiedId] = useState(false);
+
+  // Change password modal state
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changePwdError, setChangePwdError] = useState<string | null>(null);
+  const [changePwdSuccess, setChangePwdSuccess] = useState<string | null>(null);
 
   const handleCopyId = () => {
     if (profileData?.id) {
@@ -164,6 +173,60 @@ export const ProfilePage: React.FC = () => {
       navigate('/chat');
     },
   });
+
+  // Change password mutation (own profile only)
+  const changePasswordMutation = useMutation({
+    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
+      authService.changePassword(data),
+    onSuccess: () => {
+      setChangePwdError(null);
+      setChangePwdSuccess('Đổi mật khẩu thành công!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    },
+    onError: (err: any) => {
+      setChangePwdSuccess(null);
+      setChangePwdError(err?.message || 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu hiện tại.');
+    },
+  });
+
+  const handleOpenChangePassword = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setChangePwdError(null);
+    setChangePwdSuccess(null);
+    setIsChangePasswordOpen(true);
+  };
+
+  const handleChangePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePwdError(null);
+    setChangePwdSuccess(null);
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      setChangePwdError('Vui lòng nhập đầy đủ các trường mật khẩu.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setChangePwdError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setChangePwdError('Mật khẩu mới không được trùng với mật khẩu hiện tại.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setChangePwdError('Xác nhận mật khẩu mới không khớp.');
+      return;
+    }
+
+    changePasswordMutation.mutate({
+      currentPassword,
+      newPassword,
+    });
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -389,20 +452,30 @@ export const ProfilePage: React.FC = () => {
             </div>
 
             {/* Action Buttons */}
-            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
               {isOwnProfile ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setDisplayNameInput(profileData.displayName);
-                    setBioInput(profileData.bio || '');
-                    setIsEditOpen(true);
-                  }}
-                >
-                  <Edit3 size={16} />
-                  <span>Chỉnh sửa thông tin</span>
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDisplayNameInput(profileData.displayName);
+                      setBioInput(profileData.bio || '');
+                      setIsEditOpen(true);
+                    }}
+                  >
+                    <Edit3 size={16} />
+                    <span>Chỉnh sửa thông tin</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenChangePassword}
+                  >
+                    <KeyRound size={16} />
+                    <span>Đổi mật khẩu</span>
+                  </Button>
+                </>
               ) : (
                 <>
                   {isFollowing ? (
@@ -687,6 +760,87 @@ export const ProfilePage: React.FC = () => {
             )
           )}
         </div>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        title="Đổi mật khẩu"
+        maxWidth="440px"
+      >
+        <form onSubmit={handleChangePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {changePwdError && (
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: 'var(--color-danger-bg)',
+                color: 'var(--color-danger)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.8125rem',
+              }}
+            >
+              {changePwdError}
+            </div>
+          )}
+
+          {changePwdSuccess && (
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                color: 'var(--color-success)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+              }}
+            >
+              {changePwdSuccess}
+            </div>
+          )}
+
+          <Input
+            label="Mật khẩu hiện tại"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Nhập mật khẩu hiện tại"
+            required
+          />
+
+          <Input
+            label="Mật khẩu mới"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Ít nhất 6 ký tự"
+            required
+          />
+
+          <Input
+            label="Xác nhận mật khẩu mới"
+            type="password"
+            value={confirmNewPassword}
+            onChange={(e) => setConfirmNewPassword(e.target.value)}
+            placeholder="Nhập lại mật khẩu mới"
+            required
+          />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <Button variant="ghost" type="button" onClick={() => setIsChangePasswordOpen(false)}>
+              Đóng
+            </Button>
+            <Button
+              variant="primary"
+              type="submit"
+              isLoading={changePasswordMutation.isPending}
+            >
+              <KeyRound size={16} />
+              Cập nhật mật khẩu
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

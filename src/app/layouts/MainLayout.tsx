@@ -753,7 +753,7 @@ export const MainLayout: React.FC = () => {
               ))}
 
               {/* Role-Specific Workflows */}
-              {(role === 'ShopOwner' || role === 'Admin') && (
+              {role === 'ShopOwner' && (
                 <>
                   <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--color-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '1rem 0.75rem 0.25rem' }}>
                     Quản Trị Bán Hàng
@@ -779,7 +779,7 @@ export const MainLayout: React.FC = () => {
                 </>
               )}
 
-              {(role === 'Shipper' || role === 'Admin') && (
+              {role === 'Shipper' && (
                 <>
                   <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: 'var(--color-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '1rem 0.75rem 0.25rem' }}>
                     Giao Vận
@@ -922,7 +922,7 @@ export const MainLayout: React.FC = () => {
                   </NavLink>
                 ))}
 
-                {(role === 'ShopOwner' || role === 'Admin') && (
+                {role === 'ShopOwner' && (
                   <NavLink
                     to="/shop-owner"
                     onClick={() => setSidebarOpen(false)}
@@ -941,7 +941,7 @@ export const MainLayout: React.FC = () => {
                   </NavLink>
                 )}
 
-                {(role === 'Shipper' || role === 'Admin') && (
+                {role === 'Shipper' && (
                   <NavLink
                     to="/shipper"
                     onClick={() => setSidebarOpen(false)}

@@ -63,8 +63,16 @@ export const RegisterPage: React.FC = () => {
     if (!username.trim() || !email.trim() || !displayName.trim() || !password) {
       return;
     }
+    if (username.trim().length < 3) {
+      setOtpError('Tên đăng nhập phải có ít nhất 3 ký tự.');
+      return;
+    }
     if (!/^\d{6}$/.test(otpCode.trim())) {
       setOtpError('Vui lòng nhập đủ 6 chữ số mã OTP xác thực Gmail.');
+      return;
+    }
+    if (password.length < 6) {
+      setOtpError('Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
 
@@ -239,6 +247,8 @@ export const RegisterPage: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Ít nhất 6 ký tự"
+            minLength={6}
+            helperText="Mật khẩu phải có từ 6 ký tự trở lên"
             required
           />
 

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -57,6 +58,7 @@ const selectStyle: React.CSSProperties = {
 
 export const ShopOwnerDashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'revenue'>('orders');
 
@@ -87,12 +89,12 @@ export const ShopOwnerDashboardPage: React.FC = () => {
   const [revenueTo, setRevenueTo] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Queries
-  const { data: shopsData } = useQuery({
+  const { data: shopsData, isLoading: isShopsLoading } = useQuery({
     queryKey: ['shops', 'all'],
     queryFn: () => shopOwnerApi.getAllShops({ page: 1, pageSize: 50 }),
   });
 
-  const myShop = shopsData?.items.find((s) => s.ownerId === user?.id) || shopsData?.items[0];
+  const myShop = shopsData?.items.find((s) => s.ownerId === user?.id);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -352,6 +354,34 @@ export const ShopOwnerDashboardPage: React.FC = () => {
     if (stock <= 10) return <Badge variant="warning">Sắp hết ({stock})</Badge>;
     return <Badge variant="success">Còn hàng ({stock})</Badge>;
   };
+
+  if (isShopsLoading) {
+    return <LoadingState message="Đang tải thông tin cửa hàng..." />;
+  }
+
+  if (!myShop) {
+    const isAdmin = user?.role === 'Admin';
+    return (
+      <div style={{ maxWidth: '720px', margin: '2rem auto' }}>
+        <EmptyState
+          icon={<Store size={48} />}
+          title={isAdmin ? 'Tài khoản Admin không sở hữu cửa hàng riêng' : 'Bạn chưa có cửa hàng nào'}
+          description={
+            isAdmin
+              ? 'Để quản lý tất cả cửa hàng, đơn hàng, sản phẩm và doanh thu toàn sàn, vui lòng truy cập Admin Dashboard.'
+              : 'Tài khoản của bạn hiện chưa được liên kết với cửa hàng nào trên hệ thống.'
+          }
+          action={
+            isAdmin ? (
+              <Button variant="primary" onClick={() => navigate('/admin')}>
+                Đi tới Admin Dashboard
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: '1040px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

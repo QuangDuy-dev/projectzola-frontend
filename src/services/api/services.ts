@@ -54,6 +54,7 @@ import type {
   UpdateUserRequest,
   UserDto,
   UserInfoDto,
+  UserSessionDto,
   VerifyOtpRequest,
 } from '../../types';
 
@@ -68,13 +69,41 @@ export const authService = {
     displayName: string;
     otpCode: string;
   }): Promise<AuthResponse> {
-    const res = await apiClient.post<ApiResponse<AuthResponse>>('/api/auth/register', data);
+    const res = await apiClient.post<ApiResponse<AuthResponse>>('/api/auth/register', data, {
+      withCredentials: true,
+    });
     return res.data.data!;
   },
 
   async login(data: { username: string; password: string }): Promise<AuthResponse> {
-    const res = await apiClient.post<ApiResponse<AuthResponse>>('/api/auth/login', data);
+    const res = await apiClient.post<ApiResponse<AuthResponse>>('/api/auth/login', data, {
+      withCredentials: true,
+    });
     return res.data.data!;
+  },
+
+  async refresh(): Promise<AuthResponse> {
+    const res = await apiClient.post<ApiResponse<AuthResponse>>('/api/auth/refresh', undefined, {
+      withCredentials: true,
+    });
+    return res.data.data!;
+  },
+
+  async logout(): Promise<void> {
+    await apiClient.post('/api/auth/logout', undefined, { withCredentials: true });
+  },
+
+  async logoutAll(keepCurrentSession = false): Promise<void> {
+    await apiClient.post('/api/auth/logout-all', { keepCurrentSession }, { withCredentials: true });
+  },
+
+  async getSessions(): Promise<UserSessionDto[]> {
+    const res = await apiClient.get<ApiResponse<UserSessionDto[]>>('/api/auth/sessions');
+    return res.data.data ?? [];
+  },
+
+  async revokeSession(sessionId: string): Promise<void> {
+    await apiClient.delete(`/api/auth/sessions/${encodeURIComponent(sessionId)}`);
   },
 
   async getMe(): Promise<UserInfoDto> {

@@ -50,6 +50,19 @@ export interface AuthResponse {
   accessToken: string;
   expiration: string;
   user: UserInfoDto;
+  refreshToken?: string | null;
+  refreshTokenExpiration?: string | null;
+  sessionId?: string | null;
+}
+
+export interface UserSessionDto {
+  id: string;
+  deviceInfo: string;
+  ipAddress?: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
 }
 
 export interface UserDto {

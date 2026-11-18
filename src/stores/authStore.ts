@@ -7,6 +7,7 @@ interface AuthState {
   user: UserInfoDto | null;
   isAuthenticated: boolean;
   setAuth: (token: string, user: UserInfoDto) => void;
+  updateAccessToken: (token: string) => void;
   clearAuth: () => void;
   updateUser: (user: Partial<UserInfoDto>) => void;
   verifySession: (token: string, user: UserInfoDto) => void;
@@ -53,6 +54,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('Failed to persist auth:', err);
     }
     set({ accessToken: token, token, user, isAuthenticated: true });
+  },
+
+  updateAccessToken: (token: string) => {
+    set((state) => {
+      try {
+        if (typeof localStorage !== 'undefined' && state.user) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user: state.user }));
+        }
+      } catch (err) {
+        console.error('Failed to persist refreshed token:', err);
+      }
+      return { accessToken: token, token, isAuthenticated: true };
+    });
   },
 
   clearAuth: () => {

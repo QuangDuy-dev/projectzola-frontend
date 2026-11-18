@@ -35,6 +35,7 @@ export function useAuth() {
   });
 
   const logout = () => {
+    void authService.logout().catch(() => undefined);
     clearAuth();
     chatHubClient.stop();
     queryClient.clear();

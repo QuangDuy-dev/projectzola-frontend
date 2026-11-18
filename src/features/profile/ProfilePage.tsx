@@ -29,11 +29,12 @@ import { LoadingState } from '../../components/common/LoadingState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmptyState } from '../../components/common/EmptyState';
 import { formatDate } from '../../utils/formatters';
+import { ActiveSessionsPanel } from './ActiveSessionsPanel';
 import type { PostDto, PublicUserProfileDto, UserDto } from '../../types';
 
 export const ProfilePage: React.FC = () => {
   const { userId: routeUserId } = useParams<{ userId?: string }>();
-  const { user: currentUser, updateUserInfo } = useAuth();
+  const { user: currentUser, updateUserInfo, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -47,6 +48,7 @@ export const ProfilePage: React.FC = () => {
   const [isFollowListOpen, setIsFollowListOpen] = useState(false);
   const [followListType, setFollowListType] = useState<'followers' | 'following'>('followers');
   const [isCopiedId, setIsCopiedId] = useState(false);
+  const [revokingSessionId, setRevokingSessionId] = useState<string | null>(null);
 
   // Change password modal state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -107,6 +109,17 @@ export const ProfilePage: React.FC = () => {
     queryKey: ['user-following', targetUserId],
     queryFn: () => userService.getFollowing(targetUserId!),
     enabled: isFollowListOpen && followListType === 'following' && !!targetUserId,
+  });
+
+  // Query active sessions (own profile only)
+  const {
+    data: sessionsData = [],
+    isLoading: isLoadingSessions,
+    error: sessionsError,
+  } = useQuery({
+    queryKey: ['auth', 'sessions'],
+    queryFn: authService.getSessions,
+    enabled: isOwnProfile,
   });
 
   useEffect(() => {
@@ -188,6 +201,28 @@ export const ProfilePage: React.FC = () => {
     onError: (err: any) => {
       setChangePwdSuccess(null);
       setChangePwdError(err?.message || 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu hiện tại.');
+    },
+  });
+
+  // Revoke session mutation (own profile only)
+  const revokeSessionMutation = useMutation({
+    mutationFn: (sessionId: string) => authService.revokeSession(sessionId),
+    onMutate: (sessionId) => {
+      setRevokingSessionId(sessionId);
+    },
+    onSettled: () => {
+      setRevokingSessionId(null);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth', 'sessions'] });
+    },
+  });
+
+  // Logout all sessions mutation (own profile only)
+  const logoutAllMutation = useMutation({
+    mutationFn: () => authService.logoutAll(false),
+    onSuccess: () => {
+      logout();
     },
   });
 
@@ -515,6 +550,19 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* Active Sessions Panel (own profile only) */}
+      {isOwnProfile && (
+        <ActiveSessionsPanel
+          sessions={sessionsData}
+          isLoading={isLoadingSessions}
+          error={sessionsError ? (sessionsError as Error).message || 'Không thể tải danh sách phiên đăng nhập.' : null}
+          revokingSessionId={revokingSessionId}
+          isLoggingOutAll={logoutAllMutation.isPending}
+          onRevokeSession={(sessionId) => revokeSessionMutation.mutateAsync(sessionId)}
+          onLogoutAll={() => logoutAllMutation.mutateAsync()}
+        />
+      )}
 
       {/* Posts Section */}
       <div>

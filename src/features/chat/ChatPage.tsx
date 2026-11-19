@@ -20,6 +20,8 @@ import {
   BarChart2,
   BellOff,
   ChevronLeft,
+  Phone,
+  Video,
 } from 'lucide-react';
 import { useConversationMessages, useConversations, usePinnedMessages } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
@@ -48,6 +50,8 @@ import { VoiceMessageBubble } from './components/VoiceMessageBubble';
 import { CreatePollModal } from './components/CreatePollModal';
 import { PollBubble } from './components/PollBubble';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { useCall } from '../call/hooks/useCall';
+import { CallLogMessageBubble } from '../call/components/CallLogMessageBubble';
 import { validateMediaFiles } from '../../utils/chatMediaHelper';
 import {
   getMentionQuery,
@@ -137,6 +141,7 @@ export const ChatPage: React.FC = () => {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const queryClient = useQueryClient();
+  const { startCall } = useCall();
 
   // M5 state: attachments, camera capture, upload progress
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -912,13 +917,71 @@ export const ChatPage: React.FC = () => {
                   </Button>
                 ) : (
                   otherMember?.userId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/users/${otherMember.userId}`)}
-                    >
-                      Xem hồ sơ
-                    </Button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentConv) {
+                            startCall(
+                              currentConv.id,
+                              otherMember.userId,
+                              otherMember.displayName,
+                              otherMember.avatarUrl,
+                              'Voice'
+                            );
+                          }
+                        }}
+                        title="Gọi thoại"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: 'var(--color-primary, #0284c7)',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <Phone size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentConv) {
+                            startCall(
+                              currentConv.id,
+                              otherMember.userId,
+                              otherMember.displayName,
+                              otherMember.avatarUrl,
+                              'Video'
+                            );
+                          }
+                        }}
+                        title="Gọi video"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: 'var(--color-primary, #0284c7)',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <Video size={18} />
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/users/${otherMember.userId}`)}
+                      >
+                        Xem hồ sơ
+                      </Button>
+                    </>
                   )
                 )}
               </div>
@@ -1263,9 +1326,11 @@ export const ChatPage: React.FC = () => {
                           </div>
                         )}
 
-                        {msg.content && (
+                        {msg.type === 'CallLog' ? (
+                          <CallLogMessageBubble message={msg} otherMember={otherMember} />
+                        ) : msg.content ? (
                           <div>{msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : renderMessageContent(msg.content, isMine)}</div>
-                        )}
+                        ) : null}
 
                         {msg.isDeleted && !msg.content && (
                           <div><em>Tin nhắn đã bị thu hồi</em></div>

@@ -898,3 +898,5 @@ export interface SearchSuggestionsResponse {
   shops: ShopSearchDto[];
   posts: PostDto[];
 }
+
+export * from './call';

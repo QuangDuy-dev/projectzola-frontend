@@ -5,6 +5,8 @@ import { AppRouter } from './app/router/AppRouter';
 import { useAuthStore } from './stores/authStore';
 import { authService } from './services/api/services';
 import { chatHubClient } from './services/signalr/chatHubClient';
+import { CallProvider } from './features/call/contexts/CallContext';
+import { CallOverlayRoot } from './features/call/components/CallOverlayRoot';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,7 +46,10 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AppRouter />
+        <CallProvider>
+          <AppRouter />
+          <CallOverlayRoot />
+        </CallProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );

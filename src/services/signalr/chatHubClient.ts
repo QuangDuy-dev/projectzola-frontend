@@ -7,6 +7,11 @@ import {
 import { APP_CONFIG } from '../../app/config';
 import { useAuthStore } from '../../stores/authStore';
 import type {
+  CallAnswerDto,
+  CallEndedDto,
+  CallIceCandidateDto,
+  CallOfferDto,
+  CallSessionDto,
   ConversationDto,
   GroupEventDto,
   MessageDeletedDto,
@@ -19,6 +24,10 @@ import type {
   NotificationDto,
   NotificationReadEventDto,
   PollUpdatedEventDto,
+  SendRtcAnswerRequest,
+  SendRtcIceCandidateRequest,
+  SendRtcOfferRequest,
+  StartCallRequest,
   TypingEventDto,
   UserPresenceDto,
 } from '../../types';
@@ -45,6 +54,16 @@ export type SignalREventListeners = {
   onNotificationRead?: (eventData: NotificationReadEventDto) => void;
   onNotificationCountChanged?: (eventData: NotificationCountDto) => void;
   onConnectionStatusChanged?: (isConnected: boolean) => void;
+
+  // WebRTC 1-1 Call events
+  onReceiveCallOffer?: (eventData: CallOfferDto) => void;
+  onReceiveCallAnswer?: (eventData: CallAnswerDto) => void;
+  onReceiveIceCandidate?: (eventData: CallIceCandidateDto) => void;
+  onCallRinging?: (eventData: CallSessionDto) => void;
+  onCallAccepted?: (eventData: CallSessionDto) => void;
+  onCallRejected?: (eventData: CallEndedDto) => void;
+  onCallEnded?: (eventData: CallEndedDto) => void;
+  onCallBusy?: (eventData: CallSessionDto) => void;
 };
 
 class ChatHubManager {
@@ -229,6 +248,39 @@ class ChatHubManager {
     conn.on('NotificationCountChanged', (eventData: NotificationCountDto) => {
       this.listeners.forEach((l) => l.onNotificationCountChanged?.(eventData));
     });
+
+    // WebRTC 1-1 Call Event Handlers
+    conn.on('ReceiveCallOffer', (eventData: CallOfferDto) => {
+      this.listeners.forEach((l) => l.onReceiveCallOffer?.(eventData));
+    });
+
+    conn.on('ReceiveCallAnswer', (eventData: CallAnswerDto) => {
+      this.listeners.forEach((l) => l.onReceiveCallAnswer?.(eventData));
+    });
+
+    conn.on('ReceiveIceCandidate', (eventData: CallIceCandidateDto) => {
+      this.listeners.forEach((l) => l.onReceiveIceCandidate?.(eventData));
+    });
+
+    conn.on('CallRinging', (eventData: CallSessionDto) => {
+      this.listeners.forEach((l) => l.onCallRinging?.(eventData));
+    });
+
+    conn.on('CallAccepted', (eventData: CallSessionDto) => {
+      this.listeners.forEach((l) => l.onCallAccepted?.(eventData));
+    });
+
+    conn.on('CallRejected', (eventData: CallEndedDto) => {
+      this.listeners.forEach((l) => l.onCallRejected?.(eventData));
+    });
+
+    conn.on('CallEnded', (eventData: CallEndedDto) => {
+      this.listeners.forEach((l) => l.onCallEnded?.(eventData));
+    });
+
+    conn.on('CallBusy', (eventData: CallSessionDto) => {
+      this.listeners.forEach((l) => l.onCallBusy?.(eventData));
+    });
   }
 
   private notifyConnection(isConnected: boolean): void {
@@ -259,6 +311,57 @@ class ChatHubManager {
   public async typingStopped(conversationId: string): Promise<void> {
     if (this.isConnected()) {
       await this.connection!.invoke('TypingStopped', conversationId);
+    }
+  }
+
+  // WebRTC 1-1 Invocations
+  public async startCall(request: StartCallRequest): Promise<CallSessionDto> {
+    if (!this.isConnected()) {
+      await this.start();
+    }
+    if (!this.isConnected()) {
+      throw new Error('Không thể kết nối đến máy chủ thời gian thực.');
+    }
+    return await this.connection!.invoke('StartCall', request);
+  }
+
+  public async acceptCall(callSessionId: string): Promise<CallSessionDto> {
+    if (!this.isConnected()) {
+      await this.start();
+    }
+    if (!this.isConnected()) {
+      throw new Error('Không thể kết nối đến máy chủ thời gian thực.');
+    }
+    return await this.connection!.invoke('AcceptCall', callSessionId);
+  }
+
+  public async rejectCall(callSessionId: string): Promise<void> {
+    if (this.isConnected()) {
+      await this.connection!.invoke('RejectCall', callSessionId);
+    }
+  }
+
+  public async endCall(callSessionId: string, reason = 'UserHangup'): Promise<void> {
+    if (this.isConnected()) {
+      await this.connection!.invoke('EndCall', callSessionId, reason);
+    }
+  }
+
+  public async sendRtcOffer(request: SendRtcOfferRequest): Promise<void> {
+    if (this.isConnected()) {
+      await this.connection!.invoke('SendRtcOffer', request);
+    }
+  }
+
+  public async sendRtcAnswer(request: SendRtcAnswerRequest): Promise<void> {
+    if (this.isConnected()) {
+      await this.connection!.invoke('SendRtcAnswer', request);
+    }
+  }
+
+  public async sendRtcIceCandidate(request: SendRtcIceCandidateRequest): Promise<void> {
+    if (this.isConnected()) {
+      await this.connection!.invoke('SendRtcIceCandidate', request);
     }
   }
 }

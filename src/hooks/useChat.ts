@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatService } from '../services/api/services';
 import { chatHubClient } from '../services/signalr/chatHubClient';
 import { useAuthStore } from '../stores/authStore';
-import type { ConversationDto, MessageDto, PagedResult } from '../types';
+import type { ConversationDto, MessageDto, PagedResult, SendMessageRequest } from '../types';
 import {
   applyGroupDisbanded,
   applyGroupMemberRemoved,
@@ -165,8 +165,8 @@ export function useConversationMessages(conversationId?: string) {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content }: { content: string }) =>
-      conversationId ? chatService.sendMessage(conversationId, { content }) : Promise.reject('No conversation'),
+    mutationFn: (data: SendMessageRequest) =>
+      conversationId ? chatService.sendMessage(conversationId, data) : Promise.reject('No conversation'),
     onSuccess: (newMsg) => {
       queryClient.setQueryData(['messages', conversationId], (old: any) => {
         if (!old) return { items: [newMsg], totalCount: 1, page: 1, totalPages: 1 };
@@ -179,6 +179,24 @@ export function useConversationMessages(conversationId?: string) {
         };
       });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: (messageId: string) =>
+      conversationId ? chatService.deleteMessage(conversationId, messageId) : Promise.reject('No conversation'),
+    onSuccess: (deleted) => {
+      queryClient.setQueryData(['messages', conversationId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((m: MessageDto) =>
+            m.id.toLowerCase() === deleted.messageId.toLowerCase()
+              ? { ...m, isDeleted: true, content: 'Tin nhắn đã bị thu hồi' }
+              : m
+          ),
+        };
+      });
     },
   });
 
@@ -398,6 +416,7 @@ export function useConversationMessages(conversationId?: string) {
     error: messagesQuery.error as Error | null,
     sendMessage: sendMessageMutation.mutateAsync,
     isSending: sendMessageMutation.isPending,
+    deleteMessage: deleteMessageMutation.mutateAsync,
     markRead: markReadMutation.mutateAsync,
     loadOlderMessages,
     hasOlderMessages,
@@ -406,6 +425,7 @@ export function useConversationMessages(conversationId?: string) {
 }
 
 export function usePinnedMessages(conversationId?: string) {
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ['pinned-messages', conversationId],
     queryFn: () => (conversationId ? chatService.getPinnedMessages(conversationId) : Promise.resolve([])),
@@ -413,10 +433,26 @@ export function usePinnedMessages(conversationId?: string) {
     staleTime: 60000,
   });
 
+  const pinMessage = async (messageId: string) => {
+    if (!conversationId) return;
+    await chatService.pinMessage(conversationId, messageId);
+    queryClient.invalidateQueries({ queryKey: ['pinned-messages', conversationId] });
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+  };
+
+  const unpinMessage = async (messageId: string) => {
+    if (!conversationId) return;
+    await chatService.unpinMessage(conversationId, messageId);
+    queryClient.invalidateQueries({ queryKey: ['pinned-messages', conversationId] });
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+  };
+
   return {
     pinnedMessages: query.data ?? [],
     isLoading: query.isLoading,
     refetch: query.refetch,
+    pinMessage,
+    unpinMessage,
   };
 }
 

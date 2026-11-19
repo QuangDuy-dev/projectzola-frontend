@@ -1,9 +1,22 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, MessageSquare, Plus, Send, AlertCircle, AtSign, Info, Users } from 'lucide-react';
-import { useConversationMessages, useConversations } from '../../hooks/useChat';
+import {
+  ArrowDown,
+  MessageSquare,
+  Plus,
+  Send,
+  AlertCircle,
+  AtSign,
+  Info,
+  Users,
+  Pin,
+  Reply,
+  Smile,
+  Trash2,
+} from 'lucide-react';
+import { useConversationMessages, useConversations, usePinnedMessages } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
-import { userService } from '../../services/api/services';
+import { chatService, userService } from '../../services/api/services';
 import { chatHubClient } from '../../services/signalr/chatHubClient';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -16,7 +29,18 @@ import { usePresence } from '../../hooks/usePresence';
 import { OnlineFriendsBar } from './components/OnlineFriendsBar';
 import { CreateGroupModal } from './components/CreateGroupModal';
 import { GroupInfoPanel } from './components/GroupInfoPanel';
+import { PinnedMessagesBar } from './components/PinnedMessagesBar';
+import { ReplyPreviewBar } from './components/ReplyPreviewBar';
+import { MessageReactionsRow, QuickReactionPicker } from './components/MessageReactionsRow';
+import { MentionSuggestionsPopup } from './components/MentionSuggestionsPopup';
+import {
+  getMentionQuery,
+  getMentionSuggestions,
+  insertMention,
+  type MentionSuggestion,
+} from '../../utils/mentionHelper';
 import { canUserSendMessage } from '../../utils/chatReducers';
+import type { MessageDto } from '../../types';
 
 const DEFAULT_SYSTEM_ACCOUNTS = [
   { username: 'shopowner1', displayName: 'Shop Owner', role: 'ShopOwner', id: '5c800801-3f2d-4c03-9e4d-8d37fe7da4db' },
@@ -69,6 +93,7 @@ export const ChatPage: React.FC = () => {
     messages,
     isLoading: isMsgLoading,
     sendMessage,
+    deleteMessage,
     isSending,
     markRead,
     loadOlderMessages,
@@ -76,11 +101,35 @@ export const ChatPage: React.FC = () => {
     isLoadingOlder,
   } = useConversationMessages(selectedConvId || undefined);
 
+  const { pinnedMessages, unpinMessage, pinMessage } = usePinnedMessages(selectedConvId || undefined);
+
+  // M4 state: reply, hover, reaction picker, mentions
+  const [replyingToMessage, setReplyingToMessage] = useState<MessageDto | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [activeReactionPickerMessageId, setActiveReactionPickerMessageId] = useState<string | null>(null);
+  const [mentionMatch, setMentionMatch] = useState<{ query: string; index: number } | null>(null);
+  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
+  const [mentionAll, setMentionAll] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   // Scroll to bottom helper
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
     setHasNewMessagesBelow(false);
     isNearBottomRef.current = true;
+  };
+
+  // Jump to specific message with highlight animation
+  const handleJumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.transition = 'background-color 0.4s ease';
+      el.style.backgroundColor = 'var(--color-primary-light, rgba(59, 130, 246, 0.15))';
+      setTimeout(() => {
+        el.style.backgroundColor = 'transparent';
+      }, 1400);
+    }
   };
 
   // Detect scroll position to check if user is near bottom
@@ -96,12 +145,18 @@ export const ChatPage: React.FC = () => {
     }
   };
 
-  // Reset scroll and new-message indicator on conversation switch
+  // Reset scroll and M4 states on conversation switch
   useEffect(() => {
     setHasNewMessagesBelow(false);
     isNearBottomRef.current = true;
     isInitialLoadRef.current = true;
     prevMessagesCountRef.current = 0;
+    setReplyingToMessage(null);
+    setHoveredMessageId(null);
+    setActiveReactionPickerMessageId(null);
+    setMentionMatch(null);
+    setMentionedUserIds([]);
+    setMentionAll(false);
   }, [selectedConvId]);
 
   // Handle auto-scroll or unread indicator when messages update
@@ -157,18 +212,137 @@ export const ChatPage: React.FC = () => {
     });
   };
 
+  const currentConv = conversations.find((c) => c.id === selectedConvId);
+  const otherMember = currentConv?.members.find((m) => m.userId !== user?.id) || currentConv?.members[0];
+
+  const mentionSuggestions =
+    mentionMatch && currentConv?.type === 'Group' && currentConv.members
+      ? getMentionSuggestions(mentionMatch.query, currentConv.members, user?.id)
+      : [];
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setMessageInput(val);
+    const cursor = e.target.selectionStart ?? val.length;
+    if (currentConv?.type === 'Group') {
+      const match = getMentionQuery(val, cursor);
+      setMentionMatch(match);
+    } else {
+      setMentionMatch(null);
+    }
+  };
+
+  const handleSelectMention = (suggestion: MentionSuggestion) => {
+    if (!mentionMatch) return;
+    const { newContent, newCursorPosition } = insertMention(
+      messageInput,
+      mentionMatch.index,
+      mentionMatch.query.length,
+      suggestion
+    );
+    setMessageInput(newContent);
+    if (suggestion.userId === 'ALL') {
+      setMentionAll(true);
+    } else {
+      setMentionedUserIds((prev) => Array.from(new Set([...prev, suggestion.userId])));
+    }
+    setMentionMatch(null);
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+      }
+    });
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !selectedConvId) return;
 
     const text = messageInput.trim();
+    const replyId = replyingToMessage?.id;
+    const uids = mentionedUserIds.length > 0 ? [...mentionedUserIds] : undefined;
+    const all = mentionAll;
+
     setMessageInput('');
+    setReplyingToMessage(null);
+    setMentionMatch(null);
+    setMentionedUserIds([]);
+    setMentionAll(false);
+
     try {
-      await sendMessage({ content: text });
+      await sendMessage({
+        content: text,
+        replyToMessageId: replyId,
+        mentionedUserIds: uids,
+        mentionAll: all ? true : undefined,
+      });
       scrollToBottom('smooth');
     } catch (err: any) {
       alert(err.message || 'Lỗi gửi tin nhắn.');
     }
+  };
+
+  const handleToggleReaction = async (messageId: string, emoji: string) => {
+    if (!selectedConvId) return;
+    setActiveReactionPickerMessageId(null);
+    try {
+      await chatService.reactMessage(selectedConvId, messageId, emoji);
+    } catch (err: any) {
+      console.error('Lỗi thả cảm xúc:', err);
+    }
+  };
+
+  const handleTogglePin = async (msg: MessageDto) => {
+    if (!selectedConvId) return;
+    try {
+      if (msg.isPinned) {
+        await unpinMessage(msg.id);
+      } else {
+        await pinMessage(msg.id);
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err.message || 'Lỗi thao tác ghim tin nhắn.');
+    }
+  };
+
+  const handleDeleteMessage = async (msg: MessageDto) => {
+    if (!selectedConvId || msg.senderId !== user?.id || msg.isDeleted) return;
+    if (window.confirm('Bạn có chắc muốn thu hồi tin nhắn này?')) {
+      try {
+        await deleteMessage(msg.id);
+      } catch (err: any) {
+        alert(err?.response?.data?.message || err.message || 'Lỗi thu hồi tin nhắn.');
+      }
+    }
+  };
+
+  const renderMessageContent = (content: string, isMine: boolean) => {
+    if (!content) return null;
+    const mentionPattern = /(@Tất cả|@All|@[a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]+)/g;
+    const parts = content.split(mentionPattern);
+    if (parts.length === 1) return content;
+
+    return parts.map((part, index) => {
+      if (part.startsWith('@')) {
+        return (
+          <span
+            key={index}
+            style={{
+              fontWeight: 700,
+              color: isMine ? '#dbeafe' : 'var(--color-primary)',
+              backgroundColor: isMine ? 'rgba(255, 255, 255, 0.2)' : 'var(--color-primary-light, rgba(59, 130, 246, 0.1))',
+              borderRadius: '3px',
+              padding: '1px 3px',
+              display: 'inline-block',
+            }}
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   const handleStartNewChat = async (e?: React.FormEvent, directInput?: string) => {
@@ -234,9 +408,6 @@ export const ChatPage: React.FC = () => {
       setIsSearchingUser(false);
     }
   };
-
-  const currentConv = conversations.find((c) => c.id === selectedConvId);
-  const otherMember = currentConv?.members.find((m) => m.userId !== user?.id) || currentConv?.members[0];
 
   return (
     <div
@@ -471,6 +642,15 @@ export const ChatPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Pinned Messages Bar */}
+            {pinnedMessages && pinnedMessages.length > 0 && (
+              <PinnedMessagesBar
+                messages={pinnedMessages}
+                onJumpToMessage={handleJumpToMessage}
+                onUnpin={(msgId) => unpinMessage(msgId)}
+              />
+            )}
+
             {/* Messages Feed Container (Oldest at top, Newest at bottom) */}
             <div
               ref={scrollContainerRef}
@@ -514,6 +694,7 @@ export const ChatPage: React.FC = () => {
                     return (
                       <div
                         key={msg.id}
+                        id={`msg-${msg.id}`}
                         style={{
                           display: 'flex',
                           justifyContent: 'center',
@@ -540,16 +721,176 @@ export const ChatPage: React.FC = () => {
                   }
 
                   const isMine = msg.senderId === user?.id;
+                  const isHovered = hoveredMessageId === msg.id;
+                  const isPickerActive = activeReactionPickerMessageId === msg.id;
 
                   return (
                     <div
                       key={msg.id}
+                      id={`msg-${msg.id}`}
+                      onMouseEnter={() => setHoveredMessageId(msg.id)}
+                      onMouseLeave={() => setHoveredMessageId(null)}
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: isMine ? 'flex-end' : 'flex-start',
+                        position: 'relative',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: 'var(--radius-md)',
                       }}
                     >
+                      {/* Floating action bar on hover */}
+                      {(isHovered || isPickerActive) && !msg.isDeleted && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '-14px',
+                            [isMine ? 'right' : 'left']: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            backgroundColor: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-full)',
+                            boxShadow: 'var(--shadow-md)',
+                            padding: '2px 4px',
+                            gap: '2px',
+                            zIndex: 15,
+                          }}
+                        >
+                          {/* Quick Reaction toggle button */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveReactionPickerMessageId(isPickerActive ? null : msg.id)
+                            }
+                            title="Thả cảm xúc"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--color-text-muted)',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                          >
+                            <Smile size={15} />
+                          </button>
+
+                          {/* Reply button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingToMessage(msg);
+                              inputRef.current?.focus();
+                            }}
+                            title="Trả lời"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--color-text-muted)',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                          >
+                            <Reply size={15} />
+                          </button>
+
+                          {/* Pin / Unpin button */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePin(msg)}
+                            title={msg.isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: msg.isPinned ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.color = msg.isPinned
+                                ? 'var(--color-primary)'
+                                : 'var(--color-text-muted)')
+                            }
+                          >
+                            <Pin size={15} fill={msg.isPinned ? 'currentColor' : 'none'} />
+                          </button>
+
+                          {/* Delete / Revoke message (only for sender if not deleted) */}
+                          {isMine && !msg.isDeleted && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMessage(msg)}
+                              title="Thu hồi tin nhắn"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--color-text-muted)',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-error, #dc2626)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Reaction picker popup */}
+                      {isPickerActive && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '-48px',
+                            [isMine ? 'right' : 'left']: '12px',
+                            zIndex: 30,
+                          }}
+                        >
+                          <QuickReactionPicker
+                            onSelectReaction={(emoji) => handleToggleReaction(msg.id, emoji)}
+                            onClose={() => setActiveReactionPickerMessageId(null)}
+                          />
+                        </div>
+                      )}
+
+                      {/* Sender name for group chat when not mine */}
+                      {!isMine && currentConv?.type === 'Group' && msg.sender && (
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: 'var(--color-text-muted)',
+                            marginBottom: '2px',
+                            marginLeft: '4px',
+                          }}
+                        >
+                          {msg.sender.displayName || msg.sender.username}
+                        </span>
+                      )}
+
+                      {/* Bubble body */}
                       <div
                         style={{
                           maxWidth: '70%',
@@ -564,13 +905,77 @@ export const ChatPage: React.FC = () => {
                           wordBreak: 'break-word',
                           fontStyle: msg.isDeleted ? 'italic' : 'normal',
                           opacity: msg.isDeleted ? 0.75 : 1,
+                          position: 'relative',
                         }}
                       >
-                        {msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : msg.content}
+                        {/* Quote reply block if replyTo exists */}
+                        {msg.replyTo && (
+                          <div
+                            onClick={() => handleJumpToMessage(msg.replyTo!.id)}
+                            style={{
+                              borderLeft: `3px solid ${isMine ? 'rgba(255,255,255,0.7)' : 'var(--color-primary)'}`,
+                              paddingLeft: '0.5rem',
+                              marginBottom: '0.375rem',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              opacity: 0.9,
+                              backgroundColor: isMine ? 'rgba(0,0,0,0.1)' : 'var(--color-surface-hover)',
+                              borderRadius: '0 4px 4px 0',
+                              padding: '0.25rem 0.5rem',
+                            }}
+                            title="Bấm để cuộn đến tin nhắn gốc"
+                          >
+                            <div style={{ fontWeight: 600 }}>
+                              {msg.replyTo.sender?.displayName || msg.replyTo.sender?.username || 'Tin nhắn'}
+                            </div>
+                            <div
+                              style={{
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '240px',
+                              }}
+                            >
+                              {msg.replyTo.content || '[Nội dung]'}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>{msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : renderMessageContent(msg.content, isMine)}</div>
                       </div>
-                      <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
-                        {formatDateTime(msg.createdAt)}
-                      </span>
+
+                      {/* Reactions row */}
+                      {msg.reactions && msg.reactions.length > 0 && (
+                        <div style={{ marginTop: '0.25rem' }}>
+                          <MessageReactionsRow
+                            reactions={msg.reactions}
+                            currentUserId={user?.id}
+                            onToggleReaction={(emoji) => handleToggleReaction(msg.id, emoji)}
+                          />
+                        </div>
+                      )}
+
+                      {/* Timestamp and Pinned badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.25rem' }}>
+                        {msg.isPinned && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
+                              fontSize: '0.625rem',
+                              color: 'var(--color-primary)',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <Pin size={10} fill="currentColor" />
+                            <span>Đã ghim</span>
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
+                          {formatDateTime(msg.createdAt)}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
@@ -632,42 +1037,71 @@ export const ChatPage: React.FC = () => {
               }
 
               return (
-                <form
-                  onSubmit={handleSendMessage}
-                  style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--color-surface)',
-                    borderTop: '1px solid var(--color-border)',
-                    display: 'flex',
-                    gap: '0.5rem',
-                    alignItems: 'center',
-                  }}
-                >
-                  <input
-                    type="text"
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder="Nhập tin nhắn..."
+                <div style={{ position: 'relative' }}>
+                  {/* Mention Suggestions Popup */}
+                  {mentionSuggestions.length > 0 && mentionMatch && (
+                    <MentionSuggestionsPopup
+                      suggestions={mentionSuggestions}
+                      onSelect={handleSelectMention}
+                    />
+                  )}
+
+                  {/* Reply Preview Bar */}
+                  {replyingToMessage && (
+                    <ReplyPreviewBar
+                      replyingTo={replyingToMessage}
+                      onCancel={() => setReplyingToMessage(null)}
+                    />
+                  )}
+
+                  <form
+                    onSubmit={handleSendMessage}
                     style={{
-                      flex: 1,
-                      padding: '0.625rem 1rem',
-                      borderRadius: 'var(--radius-full)',
-                      border: '1px solid var(--color-border)',
-                      outline: 'none',
-                      fontSize: '0.9375rem',
-                      backgroundColor: 'var(--color-background)',
-                      color: 'var(--color-text)',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: 'var(--color-surface)',
+                      borderTop: '1px solid var(--color-border)',
+                      display: 'flex',
+                      gap: '0.5rem',
+                      alignItems: 'center',
                     }}
-                  />
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={!messageInput.trim() || isSending}
-                    style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
                   >
-                    <Send size={18} />
-                  </Button>
-                </form>
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={messageInput}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          if (mentionMatch) setMentionMatch(null);
+                          else if (replyingToMessage) setReplyingToMessage(null);
+                        }
+                      }}
+                      placeholder={
+                        currentConv?.type === 'Group'
+                          ? 'Nhập tin nhắn... (gõ @ để nhắc tên)'
+                          : 'Nhập tin nhắn...'
+                      }
+                      style={{
+                        flex: 1,
+                        padding: '0.625rem 1rem',
+                        borderRadius: 'var(--radius-full)',
+                        border: '1px solid var(--color-border)',
+                        outline: 'none',
+                        fontSize: '0.9375rem',
+                        backgroundColor: 'var(--color-background)',
+                        color: 'var(--color-text)',
+                      }}
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={!messageInput.trim() || isSending}
+                      style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
+                    >
+                      <Send size={18} />
+                    </Button>
+                  </form>
+                </div>
               );
             })()}
           </>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resolveMediaUrl } from '../../../utils/mediaUrl';
+import { SafeImage } from '../../../components/common/SafeImage';
 import { SafeVideo } from '../../../components/common/SafeVideo';
 import { MediaLightboxModal } from './MediaLightboxModal';
 import type { MessageAttachmentDto } from '../../../types';
@@ -66,7 +66,6 @@ export const MediaGrid: React.FC<MediaGridProps> = ({ attachments }) => {
           }}
         >
           {imageAttachments.map((img, idx) => {
-            const resolved = resolveMediaUrl(img.thumbnailUrl || img.storageUrl);
             const isSingle = imageAttachments.length === 1;
 
             return (
@@ -83,8 +82,8 @@ export const MediaGrid: React.FC<MediaGridProps> = ({ attachments }) => {
                   overflow: 'hidden',
                 }}
               >
-                <img
-                  src={resolved || ''}
+                <SafeImage
+                  src={img.thumbnailUrl || img.storageUrl}
                   alt={img.originalFileName || 'Ảnh'}
                   loading="lazy"
                   style={{

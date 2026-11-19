@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { resolveMediaUrl } from '../../../utils/mediaUrl';
+import { useMediaBlobUrl } from '../../../utils/mediaBlob';
 import { formatAudioDuration, parseWaveformJson } from '../../../utils/waveformHelper';
 import {
   registerPlayingAudio,
@@ -27,6 +28,7 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({
   const waveformBars = parseWaveformJson(attachment?.waveformJson, 36);
 
   const resolvedAudioUrl = resolveMediaUrl(attachment?.storageUrl);
+  const { blobUrl: audioBlobUrl } = useMediaBlobUrl(resolvedAudioUrl);
 
   useEffect(() => {
     const unsub = subscribeToAudioChange((playingAudio) => {
@@ -63,7 +65,7 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({
   const handleLoadedMetadata = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.duration && !isNaN(audio.duration)) {
+    if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
       setDuration(audio.duration);
     }
   };
@@ -107,10 +109,10 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({
         maxWidth: '300px',
       }}
     >
-      {resolvedAudioUrl && (
+      {audioBlobUrl && (
         <audio
           ref={audioRef}
-          src={resolvedAudioUrl}
+          src={audioBlobUrl}
           preload="metadata"
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}

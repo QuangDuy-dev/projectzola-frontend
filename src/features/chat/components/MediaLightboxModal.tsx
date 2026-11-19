@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { resolveMediaUrl } from '../../../utils/mediaUrl';
+import { useMediaBlobUrl } from '../../../utils/mediaBlob';
+import { SafeImage } from '../../../components/common/SafeImage';
 import { SafeVideo } from '../../../components/common/SafeVideo';
 import type { MessageAttachmentDto } from '../../../types';
 
@@ -43,6 +45,7 @@ export const MediaLightboxModal: React.FC<MediaLightboxModalProps> = ({
   const current = attachments[currentIndex] || attachments[0];
   const isVideo = current.attachmentType === 'Video' || current.mimeType.startsWith('video/');
   const resolvedUrl = resolveMediaUrl(current.storageUrl);
+  const { blobUrl: downloadBlobUrl } = useMediaBlobUrl(resolvedUrl);
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -93,9 +96,9 @@ export const MediaLightboxModal: React.FC<MediaLightboxModalProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {resolvedUrl && (
+          {(downloadBlobUrl || resolvedUrl) && (
             <a
-              href={resolvedUrl}
+              href={downloadBlobUrl || resolvedUrl || ''}
               target="_blank"
               rel="noreferrer"
               download={current.originalFileName || 'download'}
@@ -152,8 +155,8 @@ export const MediaLightboxModal: React.FC<MediaLightboxModalProps> = ({
             }}
           />
         ) : (
-          <img
-            src={resolvedUrl || ''}
+          <SafeImage
+            src={current.storageUrl}
             alt={current.originalFileName || 'Ảnh'}
             style={{
               maxWidth: '85vw',

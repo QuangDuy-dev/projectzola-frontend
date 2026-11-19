@@ -85,4 +85,31 @@ Chỉ commit trên `worker/tasks` (đã đồng bộ với `main`). Lỗi `dubio
 - Cân nhắc sửa test `Register_NewUser_ReturnsCreated` (phụ thuộc SMTP thật).
 
 ## Worker Report
-(Dev 2 điền: commit theo milestone, kết quả 3 lệnh verify, phần chưa làm/được và lý do.)
+
+### 1. Danh sách commit theo từng Milestone trên nhánh `worker/tasks`
+- **M1 (Commit `9d446ef`):** `feat(chat): M1 - add rich chat types, services, hub events and reducers`
+  - Đầy đủ types mở rộng theo backend (`docs/refs/chat-dtos/*.cs`), API routes `chatService` + `presenceService`, 9 sự kiện SignalR mới trong `chatHubClient`, query cache reducers trong `useChat.ts` và `chatReducers.ts`, test `chatReducers.test.ts` (5/5 pass).
+- **M2 (Commit `c2c72ff`):** `feat(chat): M2 - add friends presence, online status bar and indicators`
+  - Hook `usePresence.ts` (presence query + realtime event `UserPresenceChanged`), thanh `OnlineFriendsBar` avatar ngang, chấm xanh online và text "Hoạt động X phút trước" trên avatar danh sách hội thoại và header chat, test `chatPresence.test.ts` (2/2 pass).
+- **M3 (Commit `a3400b1`):** `feat(chat): M3 - add Zalo Pro group chat, management drawer, and invite join page`
+  - Modal tạo nhóm `CreateGroupModal`, drawer quản trị nhóm `GroupInfoPanel` (đổi tên/ảnh nhóm, thăng/hạ Phó nhóm, chuyển quyền Owner, kick thành viên, giải tán nhóm, toggle chỉ trưởng/phó nhóm gửi tin, toggle duyệt thành viên, copy/reset link mời, mute thông báo, duyệt join requests), trang tham gia theo link `JoinByInvitePage` (`/chat/invite/:code`), quy tắc khóa input `canUserSendMessage`, render tin System ở giữa màn hình, test `chatGroupRules.test.ts` (4/4 pass).
+- **M4 (Commit `da12e34`):** `feat(chat): M4 - add reply, reactions, message pinning, and at-mentions`
+  - Menu hover tin nhắn (Thả cảm xúc, Trả lời, Ghim/Bỏ ghim, Thu hồi), hàng reactions dưới bubble (`MessageReactionsRow`), popup chọn nhanh cảm xúc (`QuickReactionPicker`), thanh ghim đầu phòng chat (`PinnedMessagesBar`) nhảy tới tin nhắn, thanh xem trước trích dẫn (`ReplyPreviewBar`) và quote block trong bubble, autocomplete `@` mention gợi ý thành viên / `@Tất cả` (`MentionSuggestionsPopup`) và highlight mention, test `chatMentions.test.ts` (3/3 pass).
+- **M5 (Commit `fe09113`):** `feat(chat): M5 - add multi-image and camera video attachment upload`
+  - Chọn nhiều ảnh (≤10 ảnh) hoặc 1 video (≤50MB) với validation client (`chatMediaHelper.ts`), preview đính kèm (`AttachmentPicker`) kèm thanh tiến trình upload và nút xóa/thử lại, modal camera trực tiếp (`CameraCaptureModal`) qua `getUserMedia` chụp ảnh / quay video (≤60s) đóng track sạch sẽ, hiển thị lưới ảnh 1-10 kèm `MediaLightboxModal` phóng to tải về và `SafeVideo` cho video, test `chatMedia.test.ts` (8/8 pass).
+- **M6 (Commit `98aa553`):** `feat(chat): M6 - add voice recording, waveform visualization and audio player`
+  - Hook ghi âm `useVoiceRecorder.ts` (Web Audio API AnalyserNode lấy waveform mảng float ≤128 điểm, timer ≤300s, MediaRecorder `audio/webm;codecs=opus` / `audio/mp4`), thanh điều khiển ghi âm `VoiceRecorderBar` (sóng âm trực tiếp, timer, nút hủy, nút gửi), phát tin nhắn thoại `VoiceMessageBubble` (play/pause, thanh sóng âm tua được, toggle tốc độ 1x/1.5x/2x, cơ chế `audioPlayerManager` đảm bảo chỉ phát 1 voice tại 1 thời điểm), test `chatVoice.test.ts` (4/4 pass).
+- **M7 (Commit `a70871b`):** `feat(chat): M7 - add poll creation and voting, conversation mute, and polish`
+  - Modal tạo bình chọn `CreatePollModal` (câu hỏi ≤300 ký tự, 2-10 lựa chọn, toggle nhiều lựa chọn, ẩn danh, thời hạn), bong bóng bình chọn `PollBubble` (thanh % tiến trình realtime qua SignalR `PollUpdated`, toggle bỏ phiếu/đổi phiếu, nút đóng bình chọn cho creator/admin, ẩn danh không lộ voter), icon chuông `BellOff` trên hội thoại đang mute, responsive hoàn chỉnh 375px mobile (nút quay lại, ẩn/hiện danh sách linh hoạt) & 1280px desktop, đủ trạng thái Loading/Empty/Error tiếng Việt, test `chatPoll.test.ts` (4/4 pass).
+
+### 2. Kết quả 3 lệnh kiểm tra (Verification Commands)
+1. `npx tsc --noEmit`
+   - **Kết quả:** `Exit code 0` (0 errors).
+2. `npm test`
+   - **Kết quả:** `Exit code 0` (18/18 test files passed, 88/88 tests passed).
+   - Bao gồm toàn bộ test gốc (`chatOrdering`, `chatInputResolution`, `authStore`, `activeSessionsUi`...) và 6 test suite mới (`chatReducers`, `chatPresence`, `chatGroupRules`, `chatMentions`, `chatMedia`, `chatVoice`, `chatPoll`).
+3. `npm run build`
+   - **Kết quả:** `Exit code 0` (`tsc -b && vite build` hoàn tất xuất sắc, bundle tạo trong thư mục `dist`).
+
+### 3. Phần việc của Dev 2
+- Toàn bộ 7 Milestone (M1 → M7) đã được triển khai, kiểm thử, tích hợp và commit hoàn tất 100% trên nhánh `worker/tasks` theo đúng quy ước và không vi phạm bất kỳ file cấm nào.

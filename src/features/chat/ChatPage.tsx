@@ -16,6 +16,7 @@ import {
   Trash2,
   Camera,
   Image as ImageIcon,
+  Mic,
 } from 'lucide-react';
 import { useConversationMessages, useConversations, usePinnedMessages } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
@@ -39,6 +40,9 @@ import { MentionSuggestionsPopup } from './components/MentionSuggestionsPopup';
 import { AttachmentPicker } from './components/AttachmentPicker';
 import { CameraCaptureModal } from './components/CameraCaptureModal';
 import { MediaGrid } from './components/MediaGrid';
+import { VoiceRecorderBar } from './components/VoiceRecorderBar';
+import { VoiceMessageBubble } from './components/VoiceMessageBubble';
+import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { validateMediaFiles } from '../../utils/chatMediaHelper';
 import {
   getMentionQuery,
@@ -129,6 +133,18 @@ export const ChatPage: React.FC = () => {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // M6 state: voice message recording
+  const [isVoiceRecordingActive, setIsVoiceRecordingActive] = useState(false);
+  const [isSendingVoice, setIsSendingVoice] = useState(false);
+  const {
+    recordingSeconds,
+    liveWaveform,
+    error: voiceRecorderError,
+    startRecording: startVoiceRecording,
+    stopRecording: stopVoiceRecording,
+    cancelRecording: cancelVoiceRecording,
+  } = useVoiceRecorder();
+
   // Scroll to bottom helper
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -162,7 +178,7 @@ export const ChatPage: React.FC = () => {
     }
   };
 
-  // Reset scroll and M4/M5 states on conversation switch
+  // Reset scroll and M4/M5/M6 states on conversation switch
   useEffect(() => {
     setHasNewMessagesBelow(false);
     isNearBottomRef.current = true;
@@ -178,6 +194,10 @@ export const ChatPage: React.FC = () => {
     setUploadProgress(null);
     setUploadError(null);
     setIsUploadingMedia(false);
+    if (isVoiceRecordingActive) {
+      cancelVoiceRecording();
+      setIsVoiceRecordingActive(false);
+    }
   }, [selectedConvId]);
 
   // Handle auto-scroll or unread indicator when messages update
@@ -403,6 +423,57 @@ export const ChatPage: React.FC = () => {
 
   const handleRetryUpload = () => {
     handleSendMessage({ preventDefault: () => {} } as any);
+  };
+
+  const handleStartVoice = async () => {
+    setIsVoiceRecordingActive(true);
+    await startVoiceRecording();
+  };
+
+  const handleCancelVoice = () => {
+    cancelVoiceRecording();
+    setIsVoiceRecordingActive(false);
+  };
+
+  const handleSendVoice = async () => {
+    if (!selectedConvId) return;
+    setIsSendingVoice(true);
+    try {
+      const recorded = await stopVoiceRecording();
+      if (recorded) {
+        const replyId = replyingToMessage?.id;
+        const sentMsg = await chatService.sendVoiceMessage(
+          selectedConvId,
+          recorded.audioBlob,
+          {
+            durationSeconds: recorded.durationSeconds,
+            waveformJson: recorded.waveformJson,
+            replyToMessageId: replyId,
+          }
+        );
+
+        queryClient.setQueryData(['messages', selectedConvId], (old: any) => {
+          if (!old) return { items: [sentMsg], totalCount: 1, page: 1, totalPages: 1 };
+          const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === sentMsg.id.toLowerCase());
+          if (exists) return old;
+          return {
+            ...old,
+            items: [...old.items, sentMsg],
+            totalCount: (old.totalCount ?? old.items.length) + 1,
+          };
+        });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+        setReplyingToMessage(null);
+        setIsVoiceRecordingActive(false);
+        scrollToBottom('smooth');
+      }
+    } catch (err: any) {
+      console.error('Lỗi gửi tin nhắn thoại:', err);
+      alert(err?.response?.data?.message || err.message || 'Lỗi gửi tin nhắn thoại.');
+    } finally {
+      setIsSendingVoice(false);
+    }
   };
 
   const handleToggleReaction = async (messageId: string, emoji: string) => {
@@ -1063,11 +1134,29 @@ export const ChatPage: React.FC = () => {
                           </div>
                         )}
 
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div style={{ marginBottom: msg.content ? '0.5rem' : 0 }}>
-                            <MediaGrid attachments={msg.attachments} isMine={isMine} />
-                          </div>
-                        )}
+                        {(() => {
+                          const audioAtt = msg.attachments?.find(
+                            (a) => a.attachmentType === 'Audio' || a.mimeType?.startsWith('audio/')
+                          );
+                          const nonAudioAtts = msg.attachments?.filter(
+                            (a) => a.attachmentType !== 'Audio' && !a.mimeType?.startsWith('audio/')
+                          );
+
+                          return (
+                            <>
+                              {audioAtt && (
+                                <div style={{ marginBottom: msg.content ? '0.375rem' : 0 }}>
+                                  <VoiceMessageBubble attachment={audioAtt} isMine={isMine} />
+                                </div>
+                              )}
+                              {nonAudioAtts && nonAudioAtts.length > 0 && (
+                                <div style={{ marginBottom: msg.content ? '0.5rem' : 0 }}>
+                                  <MediaGrid attachments={nonAudioAtts} isMine={isMine} />
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
 
                         {msg.content && (
                           <div>{msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : renderMessageContent(msg.content, isMine)}</div>
@@ -1201,110 +1290,143 @@ export const ChatPage: React.FC = () => {
                     />
                   )}
 
-                  <form
-                    onSubmit={handleSendMessage}
-                    style={{
-                      padding: '0.75rem 1rem',
-                      backgroundColor: 'var(--color-surface)',
-                      borderTop: '1px solid var(--color-border)',
-                      display: 'flex',
-                      gap: '0.5rem',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
-                      style={{ display: 'none' }}
-                      onChange={handleFileSelect}
+                  {isVoiceRecordingActive ? (
+                    <VoiceRecorderBar
+                      recordingSeconds={recordingSeconds}
+                      liveWaveform={liveWaveform}
+                      error={voiceRecorderError}
+                      onCancel={handleCancelVoice}
+                      onSend={handleSendVoice}
+                      isSending={isSendingVoice}
                     />
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Đính kèm ảnh hoặc video"
-                      disabled={isUploadingMedia}
+                  ) : (
+                    <form
+                      onSubmit={handleSendMessage}
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '0.375rem',
-                        borderRadius: '50%',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: 'var(--color-surface)',
+                        borderTop: '1px solid var(--color-border)',
                         display: 'flex',
+                        gap: '0.5rem',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        color: selectedFiles.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color =
-                          selectedFiles.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)')
-                      }
                     >
-                      <ImageIcon size={20} />
-                    </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                        style={{ display: 'none' }}
+                        onChange={handleFileSelect}
+                      />
 
-                    <button
-                      type="button"
-                      onClick={() => setIsCameraModalOpen(true)}
-                      title="Chụp ảnh hoặc quay video"
-                      disabled={isUploadingMedia}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '0.375rem',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--color-text-muted)',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
-                    >
-                      <Camera size={20} />
-                    </button>
-
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={messageInput}
-                      onChange={handleInputChange}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          if (mentionMatch) setMentionMatch(null);
-                          else if (replyingToMessage) setReplyingToMessage(null);
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Đính kèm ảnh hoặc video"
+                        disabled={isUploadingMedia}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0.375rem',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: selectedFiles.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.color =
+                            selectedFiles.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)')
                         }
-                      }}
-                      placeholder={
-                        currentConv?.type === 'Group'
-                          ? 'Nhập tin nhắn... (gõ @ để nhắc tên)'
-                          : 'Nhập tin nhắn...'
-                      }
-                      style={{
-                        flex: 1,
-                        padding: '0.625rem 1rem',
-                        borderRadius: 'var(--radius-full)',
-                        border: '1px solid var(--color-border)',
-                        outline: 'none',
-                        fontSize: '0.9375rem',
-                        backgroundColor: 'var(--color-background)',
-                        color: 'var(--color-text)',
-                      }}
-                    />
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      disabled={(!messageInput.trim() && selectedFiles.length === 0) || isSending || isUploadingMedia}
-                      isLoading={isUploadingMedia || isSending}
-                      style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
-                    >
-                      <Send size={18} />
-                    </Button>
-                  </form>
+                      >
+                        <ImageIcon size={20} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsCameraModalOpen(true)}
+                        title="Chụp ảnh hoặc quay video"
+                        disabled={isUploadingMedia}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0.375rem',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--color-text-muted)',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                      >
+                        <Camera size={20} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleStartVoice}
+                        title="Ghi âm tin nhắn thoại"
+                        disabled={isUploadingMedia || isSending}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0.375rem',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--color-text-muted)',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                      >
+                        <Mic size={20} />
+                      </button>
+
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={messageInput}
+                        onChange={handleInputChange}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            if (mentionMatch) setMentionMatch(null);
+                            else if (replyingToMessage) setReplyingToMessage(null);
+                          }
+                        }}
+                        placeholder={
+                          currentConv?.type === 'Group'
+                            ? 'Nhập tin nhắn... (gõ @ để nhắc tên)'
+                            : 'Nhập tin nhắn...'
+                        }
+                        style={{
+                          flex: 1,
+                          padding: '0.625rem 1rem',
+                          borderRadius: 'var(--radius-full)',
+                          border: '1px solid var(--color-border)',
+                          outline: 'none',
+                          fontSize: '0.9375rem',
+                          backgroundColor: 'var(--color-background)',
+                          color: 'var(--color-text)',
+                        }}
+                      />
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        disabled={(!messageInput.trim() && selectedFiles.length === 0) || isSending || isUploadingMedia}
+                        isLoading={isUploadingMedia || isSending}
+                        style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
+                      >
+                        <Send size={18} />
+                      </Button>
+                    </form>
+                  )}
                 </div>
               );
             })()}

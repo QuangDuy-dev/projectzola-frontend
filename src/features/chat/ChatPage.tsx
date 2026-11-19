@@ -11,7 +11,9 @@ import { Modal } from '../../components/ui/Modal';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import { LoadingState } from '../../components/common/LoadingState';
 import { EmptyState } from '../../components/common/EmptyState';
-import { formatDateTime } from '../../utils/formatters';
+import { formatDateTime, formatRelativeTime } from '../../utils/formatters';
+import { usePresence } from '../../hooks/usePresence';
+import { OnlineFriendsBar } from './components/OnlineFriendsBar';
 
 const DEFAULT_SYSTEM_ACCOUNTS = [
   { username: 'shopowner1', displayName: 'Shop Owner', role: 'ShopOwner', id: '5c800801-3f2d-4c03-9e4d-8d37fe7da4db' },
@@ -24,6 +26,7 @@ export const ChatPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { conversations, isLoading: isConvLoading, createConversation } = useConversations();
+  const { isOnline, getLastSeen } = usePresence();
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
@@ -266,6 +269,8 @@ export const ChatPage: React.FC = () => {
           </Button>
         </div>
 
+        <OnlineFriendsBar onSelectUser={(uid) => handleStartNewChat(undefined, uid)} />
+
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {isConvLoading && <LoadingState message="Đang tải..." />}
 
@@ -279,6 +284,7 @@ export const ChatPage: React.FC = () => {
             conversations.map((conv) => {
               const partner = conv.members.find((m) => m.userId !== user?.id) || conv.members[0];
               const isSelected = conv.id === selectedConvId;
+              const isPartnerOnline = partner?.userId ? isOnline(partner.userId) : false;
 
               return (
                 <div
@@ -295,16 +301,34 @@ export const ChatPage: React.FC = () => {
                     transition: 'background-color 0.1s ease',
                   }}
                 >
-                  <UserAvatar
-                    avatarUrl={partner?.avatarUrl}
-                    displayName={partner?.displayName || 'Chat'}
-                    size={40}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <UserAvatar
+                      avatarUrl={partner?.avatarUrl}
+                      displayName={partner?.displayName || 'Chat'}
+                      size={40}
+                    />
+                    {isPartnerOnline && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          right: 0,
+                          width: '10px',
+                          height: '10px',
+                          backgroundColor: 'var(--color-success, #22c55e)',
+                          border: '2px solid var(--color-surface)',
+                          borderRadius: '50%',
+                        }}
+                      />
+                    )}
+                  </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 600, fontSize: '0.9375rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        {partner?.displayName || 'Người dùng'}
+                        {conv.type === 'Group'
+                          ? conv.name || 'Nhóm trò chuyện'
+                          : partner?.displayName || 'Người dùng'}
                       </span>
                     </div>
                     <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -347,29 +371,58 @@ export const ChatPage: React.FC = () => {
                 }}
                 title={otherMember?.userId ? `Xem hồ sơ của ${otherMember.displayName}` : undefined}
               >
-                <UserAvatar
-                  avatarUrl={otherMember?.avatarUrl}
-                  displayName={otherMember?.displayName || 'User'}
-                  size={36}
-                  clickable={false}
-                />
+                <div style={{ position: 'relative' }}>
+                  <UserAvatar
+                    avatarUrl={otherMember?.avatarUrl}
+                    displayName={otherMember?.displayName || 'User'}
+                    size={36}
+                    clickable={false}
+                  />
+                  {otherMember?.userId && isOnline(otherMember.userId) && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        right: 0,
+                        width: '9px',
+                        height: '9px',
+                        backgroundColor: 'var(--color-success, #22c55e)',
+                        border: '2px solid var(--color-surface)',
+                        borderRadius: '50%',
+                      }}
+                    />
+                  )}
+                </div>
                 <div>
                   <h4 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>
-                    {otherMember?.displayName || 'Cuộc trò chuyện'}
+                    {currentConv?.type === 'Group'
+                      ? currentConv.name || 'Nhóm trò chuyện'
+                      : otherMember?.displayName || 'Cuộc trò chuyện'}
                   </h4>
-                  <span
-                    style={{
-                      fontSize: '0.6875rem',
-                      color: isSignalRConnected ? 'var(--color-success)' : 'var(--color-warning, #eab308)',
-                      fontWeight: 500,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                    }}
-                  >
-                    <span>{isSignalRConnected ? '●' : '○'}</span>
-                    <span>{isSignalRConnected ? 'Đã kết nối Realtime' : 'Đang kết nối lại...'}</span>
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '0.6875rem',
+                        color: isSignalRConnected ? 'var(--color-success)' : 'var(--color-warning, #eab308)',
+                        fontWeight: 500,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                      }}
+                    >
+                      <span>{isSignalRConnected ? '●' : '○'}</span>
+                      <span>{isSignalRConnected ? 'Realtime' : 'Đang kết nối lại...'}</span>
+                    </span>
+                    {currentConv?.type !== 'Group' && otherMember?.userId && (
+                      <span style={{ fontSize: '0.6875rem', color: isOnline(otherMember.userId) ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                        {isOnline(otherMember.userId)
+                          ? '• Đang hoạt động'
+                          : getLastSeen(otherMember.userId)
+                            ? `• Hoạt động ${formatRelativeTime(getLastSeen(otherMember.userId))}`
+                            : '• Ngoại tuyến'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

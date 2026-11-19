@@ -8,13 +8,17 @@ import { APP_CONFIG } from '../../app/config';
 import { useAuthStore } from '../../stores/authStore';
 import type {
   ConversationDto,
+  GroupEventDto,
   MessageDeletedDto,
   MessageDeliveryDto,
   MessageDto,
+  MessagePinEventDto,
+  MessageReactionEventDto,
   MessageReadDto,
   NotificationCountDto,
   NotificationDto,
   NotificationReadEventDto,
+  PollUpdatedEventDto,
   TypingEventDto,
   UserPresenceDto,
 } from '../../types';
@@ -28,6 +32,15 @@ export type SignalREventListeners = {
   onMessageRead?: (eventData: MessageReadDto) => void;
   onUserPresenceChanged?: (eventData: UserPresenceDto) => void;
   onConversationUpdated?: (conversation: ConversationDto) => void;
+  onGroupUpdated?: (eventData: GroupEventDto) => void;
+  onGroupMemberAdded?: (eventData: GroupEventDto) => void;
+  onGroupMemberRemoved?: (eventData: GroupEventDto) => void;
+  onGroupDisbanded?: (eventData: GroupEventDto) => void;
+  onMessageReactionUpdated?: (eventData: MessageReactionEventDto) => void;
+  onMessagePinned?: (eventData: MessagePinEventDto) => void;
+  onMessageUnpinned?: (eventData: MessagePinEventDto) => void;
+  onPollUpdated?: (eventData: PollUpdatedEventDto) => void;
+  onJoinRequestUpdated?: (eventData: GroupEventDto) => void;
   onNotificationReceived?: (notification: NotificationDto) => void;
   onNotificationRead?: (eventData: NotificationReadEventDto) => void;
   onNotificationCountChanged?: (eventData: NotificationCountDto) => void;
@@ -167,6 +180,42 @@ class ChatHubManager {
 
     conn.on('ConversationUpdated', (conversation: ConversationDto) => {
       this.listeners.forEach((l) => l.onConversationUpdated?.(conversation));
+    });
+
+    conn.on('GroupUpdated', (eventData: GroupEventDto) => {
+      this.listeners.forEach((l) => l.onGroupUpdated?.(eventData));
+    });
+
+    conn.on('GroupMemberAdded', (eventData: GroupEventDto) => {
+      this.listeners.forEach((l) => l.onGroupMemberAdded?.(eventData));
+    });
+
+    conn.on('GroupMemberRemoved', (eventData: GroupEventDto) => {
+      this.listeners.forEach((l) => l.onGroupMemberRemoved?.(eventData));
+    });
+
+    conn.on('GroupDisbanded', (eventData: GroupEventDto) => {
+      this.listeners.forEach((l) => l.onGroupDisbanded?.(eventData));
+    });
+
+    conn.on('MessageReactionUpdated', (eventData: MessageReactionEventDto) => {
+      this.listeners.forEach((l) => l.onMessageReactionUpdated?.(eventData));
+    });
+
+    conn.on('MessagePinned', (eventData: MessagePinEventDto) => {
+      this.listeners.forEach((l) => l.onMessagePinned?.(eventData));
+    });
+
+    conn.on('MessageUnpinned', (eventData: MessagePinEventDto) => {
+      this.listeners.forEach((l) => l.onMessageUnpinned?.(eventData));
+    });
+
+    conn.on('PollUpdated', (eventData: PollUpdatedEventDto) => {
+      this.listeners.forEach((l) => l.onPollUpdated?.(eventData));
+    });
+
+    conn.on('JoinRequestUpdated', (eventData: GroupEventDto) => {
+      this.listeners.forEach((l) => l.onJoinRequestUpdated?.(eventData));
     });
 
     conn.on('NotificationReceived', (notification: NotificationDto) => {

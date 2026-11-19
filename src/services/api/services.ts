@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import type {
+  AddGroupMembersRequest,
   AdminUpdateUserRequest,
   ApiResponse,
   AuthResponse,
@@ -7,10 +8,13 @@ import type {
   CategoryDto,
   ChangePasswordRequest,
   ChatbotResponse,
+  ChatPollDto,
   CommentDto,
   ConversationDto,
   CreateCategoryRequest,
   CreateCommentRequest,
+  CreateGroupConversationRequest,
+  CreatePollRequest,
   CreatePostRequest,
   CreateProductRequest,
   CreateShopRequest,
@@ -18,15 +22,26 @@ import type {
   EditMessageRequest,
   FeedPostDto,
   ForgotPasswordResetRequest,
+  GroupEventDto,
+  GroupInvitePreviewDto,
+  GroupJoinRequestDto,
+  LeaveGroupRequest,
   MarkReadRequest,
+  MessageAttachmentDto,
   MessageDeletedDto,
+  MessageDeliveryDto,
   MessageDto,
+  MessagePinEventDto,
+  MessageReactionEventDto,
   MessageReadDto,
+  MuteConversationRequest,
   NotificationCountDto,
   NotificationDto,
+  OnlineFriendDto,
   OrderDto,
   PagedResult,
   PaginationParams,
+  PollUpdatedEventDto,
   PostDto,
   PostMediaDto,
   ProductDto,
@@ -35,6 +50,7 @@ import type {
   ProductSearchParams,
   PublicUserProfileDto,
   ReactionRequest,
+  ReviewJoinRequestDto,
   RevenueDto,
   SearchSuggestionsResponse,
   SendMessageRequest,
@@ -43,10 +59,15 @@ import type {
   ShipperProfileDto,
   ShopDto,
   ShopSearchDto,
+  ToggleReactionRequest,
+  TransferOwnershipRequest,
   UnifiedSearchParams,
   UnifiedSearchResponse,
   UpdateCategoryRequest,
   UpdateCommentRequest,
+  UpdateGroupSettingsRequest,
+  UpdateMemberRoleRequest,
+  UpdateNicknameRequest,
   UpdatePostRequest,
   UpdateProductRequest,
   UpdateShipperProfileRequest,
@@ -54,8 +75,10 @@ import type {
   UpdateUserRequest,
   UserDto,
   UserInfoDto,
+  UserPresenceStatusDto,
   UserSessionDto,
   VerifyOtpRequest,
+  VotePollRequest,
 } from '../../types';
 
 // ==========================================
@@ -640,9 +663,208 @@ export const chatService = {
     return res.data.data!;
   },
 
+  async getConversation(id: string): Promise<ConversationDto> {
+    const res = await apiClient.get<ApiResponse<ConversationDto>>(`/api/conversations/${id}`);
+    return res.data.data!;
+  },
+
+  async createGroup(data: CreateGroupConversationRequest): Promise<ConversationDto> {
+    const res = await apiClient.post<ApiResponse<ConversationDto>>('/api/conversations/groups', data);
+    return res.data.data!;
+  },
+
+  async updateGroupSettings(conversationId: string, data: UpdateGroupSettingsRequest): Promise<GroupEventDto> {
+    const res = await apiClient.put<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/group`, data);
+    return res.data.data!;
+  },
+
+  async updateGroupAvatar(conversationId: string, file: File | Blob): Promise<GroupEventDto> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/avatar`, formData);
+    return res.data.data!;
+  },
+
+  async addMembers(conversationId: string, data: AddGroupMembersRequest): Promise<GroupEventDto> {
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/members`, data);
+    return res.data.data!;
+  },
+
+  async removeMember(conversationId: string, memberUserId: string): Promise<GroupEventDto> {
+    const res = await apiClient.delete<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/members/${memberUserId}`);
+    return res.data.data!;
+  },
+
+  async updateMemberRole(conversationId: string, memberUserId: string, data: UpdateMemberRoleRequest): Promise<GroupEventDto> {
+    const res = await apiClient.put<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/members/${memberUserId}/role`, data);
+    return res.data.data!;
+  },
+
+  async updateNickname(conversationId: string, memberUserId: string, data: UpdateNicknameRequest): Promise<GroupEventDto> {
+    const res = await apiClient.put<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/members/${memberUserId}/nickname`, data);
+    return res.data.data!;
+  },
+
+  async transferOwnership(conversationId: string, data: TransferOwnershipRequest): Promise<GroupEventDto> {
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/transfer-owner`, data);
+    return res.data.data!;
+  },
+
+  async leaveGroup(conversationId: string, data?: LeaveGroupRequest): Promise<GroupEventDto> {
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/leave`, data ?? {});
+    return res.data.data!;
+  },
+
+  async disbandGroup(conversationId: string): Promise<GroupEventDto> {
+    const res = await apiClient.delete<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/disband`);
+    return res.data.data!;
+  },
+
+  async muteConversation(conversationId: string, data: MuteConversationRequest): Promise<string | null> {
+    const res = await apiClient.put<ApiResponse<string | null>>(`/api/conversations/${conversationId}/mute`, data);
+    return res.data.data ?? null;
+  },
+
+  async resetInviteLink(conversationId: string): Promise<{ inviteCode: string }> {
+    const res = await apiClient.post<ApiResponse<{ inviteCode: string }>>(`/api/conversations/${conversationId}/invite-link/reset`);
+    return res.data.data!;
+  },
+
+  async getInvitePreview(inviteCode: string): Promise<GroupInvitePreviewDto> {
+    const res = await apiClient.get<ApiResponse<GroupInvitePreviewDto>>(`/api/conversations/invite/${encodeURIComponent(inviteCode)}`);
+    return res.data.data!;
+  },
+
+  async joinByInvite(inviteCode: string): Promise<GroupEventDto> {
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/invite/${encodeURIComponent(inviteCode)}/join`);
+    return res.data.data!;
+  },
+
+  async getJoinRequests(conversationId: string): Promise<GroupJoinRequestDto[]> {
+    const res = await apiClient.get<ApiResponse<GroupJoinRequestDto[]>>(`/api/conversations/${conversationId}/join-requests`);
+    return res.data.data ?? [];
+  },
+
+  async reviewJoinRequest(conversationId: string, requestId: string, data: ReviewJoinRequestDto): Promise<GroupEventDto> {
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/join-requests/${requestId}/review`, data);
+    return res.data.data!;
+  },
+
+  async sendMediaMessage(
+    conversationId: string,
+    files: File[],
+    extra?: {
+      content?: string;
+      replyToMessageId?: string;
+      clientMessageId?: string;
+      mentionedUserIds?: string[];
+      mentionAll?: boolean;
+    },
+    onUploadProgress?: (progressEvent: any) => void
+  ): Promise<MessageDto> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    if (extra?.content) formData.append('content', extra.content);
+    if (extra?.replyToMessageId) formData.append('replyToMessageId', extra.replyToMessageId);
+    if (extra?.clientMessageId) formData.append('clientMessageId', extra.clientMessageId);
+    if (extra?.mentionedUserIds && extra.mentionedUserIds.length > 0) {
+      for (const uid of extra.mentionedUserIds) {
+        formData.append('mentionedUserIds', uid);
+      }
+    }
+    if (extra?.mentionAll) formData.append('mentionAll', 'true');
+
+    const res = await apiClient.post<ApiResponse<MessageDto>>(`/api/conversations/${conversationId}/messages/media`, formData, {
+      onUploadProgress,
+    });
+    return res.data.data!;
+  },
+
+  async sendVoiceMessage(
+    conversationId: string,
+    audio: Blob | File,
+    extra?: {
+      durationSeconds?: number;
+      waveformJson?: string;
+      replyToMessageId?: string;
+      clientMessageId?: string;
+    },
+    onUploadProgress?: (progressEvent: any) => void
+  ): Promise<MessageDto> {
+    const formData = new FormData();
+    formData.append('audio', audio, audio instanceof File ? audio.name : 'voice.webm');
+    if (extra?.durationSeconds != null) formData.append('durationSeconds', String(extra.durationSeconds));
+    if (extra?.waveformJson) formData.append('waveformJson', extra.waveformJson);
+    if (extra?.replyToMessageId) formData.append('replyToMessageId', extra.replyToMessageId);
+    if (extra?.clientMessageId) formData.append('clientMessageId', extra.clientMessageId);
+
+    const res = await apiClient.post<ApiResponse<MessageDto>>(`/api/conversations/${conversationId}/messages/voice`, formData, {
+      onUploadProgress,
+    });
+    return res.data.data!;
+  },
+
+  async getPinnedMessages(conversationId: string): Promise<MessageDto[]> {
+    const res = await apiClient.get<ApiResponse<MessageDto[]>>(`/api/conversations/${conversationId}/pinned-messages`);
+    return res.data.data ?? [];
+  },
+
+  async pinMessage(conversationId: string, messageId: string): Promise<MessagePinEventDto> {
+    const res = await apiClient.post<ApiResponse<MessagePinEventDto>>(`/api/conversations/${conversationId}/messages/${messageId}/pin`);
+    return res.data.data!;
+  },
+
+  async unpinMessage(conversationId: string, messageId: string): Promise<MessagePinEventDto> {
+    const res = await apiClient.delete<ApiResponse<MessagePinEventDto>>(`/api/conversations/${conversationId}/messages/${messageId}/pin`);
+    return res.data.data!;
+  },
+
+  async toggleReaction(conversationId: string, messageId: string, data: ToggleReactionRequest): Promise<MessageReactionEventDto> {
+    const res = await apiClient.post<ApiResponse<MessageReactionEventDto>>(`/api/conversations/${conversationId}/messages/${messageId}/reactions`, data);
+    return res.data.data!;
+  },
+
+  async createPoll(conversationId: string, data: CreatePollRequest): Promise<MessageDto> {
+    const res = await apiClient.post<ApiResponse<MessageDto>>(`/api/conversations/${conversationId}/polls`, data);
+    return res.data.data!;
+  },
+
+  async votePoll(conversationId: string, pollId: string, data: VotePollRequest): Promise<PollUpdatedEventDto> {
+    const res = await apiClient.post<ApiResponse<PollUpdatedEventDto>>(`/api/conversations/${conversationId}/polls/${pollId}/vote`, data);
+    return res.data.data!;
+  },
+
+  async closePoll(conversationId: string, pollId: string): Promise<PollUpdatedEventDto> {
+    const res = await apiClient.post<ApiResponse<PollUpdatedEventDto>>(`/api/conversations/${conversationId}/polls/${pollId}/close`);
+    return res.data.data!;
+  },
+
+  async getPoll(conversationId: string, pollId: string): Promise<ChatPollDto> {
+    const res = await apiClient.get<ApiResponse<ChatPollDto>>(`/api/conversations/${conversationId}/polls/${pollId}`);
+    return res.data.data!;
+  },
+
   async markRead(conversationId: string, data: MarkReadRequest): Promise<MessageReadDto> {
     const res = await apiClient.post<ApiResponse<MessageReadDto>>(`/api/conversations/${conversationId}/read`, data);
     return res.data.data!;
+  },
+};
+
+// ==========================================
+// 12.1 PRESENCE SERVICE
+// ==========================================
+export const presenceService = {
+  async getOnlineFriends(): Promise<OnlineFriendDto[]> {
+    const res = await apiClient.get<ApiResponse<OnlineFriendDto[]>>('/api/presence/online-friends');
+    return res.data.data ?? [];
+  },
+
+  async getBatchPresence(userIds: string[]): Promise<UserPresenceStatusDto[]> {
+    if (!userIds || userIds.length === 0) return [];
+    const res = await apiClient.post<ApiResponse<UserPresenceStatusDto[]>>('/api/presence/batch', { userIds });
+    return res.data.data ?? [];
   },
 };
 

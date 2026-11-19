@@ -110,3 +110,26 @@ export function applyGroupUpdated(
   }
   return conversation;
 }
+
+/**
+ * Checks if a user is allowed to send messages in a conversation.
+ */
+export function canUserSendMessage(
+  conv: ConversationDto,
+  userId?: string
+): { canSend: boolean; reason?: 'disbanded' | 'admin_only' } {
+  if (conv.isDisbanded) {
+    return { canSend: false, reason: 'disbanded' };
+  }
+
+  if (conv.type === 'Group' && conv.onlyAdminsCanSend) {
+    const member = conv.members.find((m) => m.userId.toLowerCase() === userId?.toLowerCase());
+    const role = member?.role || conv.currentUserRole || 'Member';
+    const isPrivileged = role === 'Owner' || role === 'Admin';
+    if (!isPrivileged) {
+      return { canSend: false, reason: 'admin_only' };
+    }
+  }
+
+  return { canSend: true };
+}

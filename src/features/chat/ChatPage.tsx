@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, MessageSquare, Plus, Send, AlertCircle, AtSign } from 'lucide-react';
+import { ArrowDown, MessageSquare, Plus, Send, AlertCircle, AtSign, Info, Users } from 'lucide-react';
 import { useConversationMessages, useConversations } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
 import { userService } from '../../services/api/services';
@@ -14,6 +14,9 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { formatDateTime, formatRelativeTime } from '../../utils/formatters';
 import { usePresence } from '../../hooks/usePresence';
 import { OnlineFriendsBar } from './components/OnlineFriendsBar';
+import { CreateGroupModal } from './components/CreateGroupModal';
+import { GroupInfoPanel } from './components/GroupInfoPanel';
+import { canUserSendMessage } from '../../utils/chatReducers';
 
 const DEFAULT_SYSTEM_ACCOUNTS = [
   { username: 'shopowner1', displayName: 'Shop Owner', role: 'ShopOwner', id: '5c800801-3f2d-4c03-9e4d-8d37fe7da4db' },
@@ -30,6 +33,8 @@ export const ChatPage: React.FC = () => {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  const [isGroupInfoOpen, setIsGroupInfoOpen] = useState(false);
   const [targetInput, setTargetInput] = useState('');
   const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
@@ -263,10 +268,25 @@ export const ChatPage: React.FC = () => {
             justifyContent: 'space-between',
           }}
         >
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 700 }}>Trò chuyện (SignalR)</h3>
-          <Button variant="primary" size="sm" onClick={() => setIsNewChatModalOpen(true)} title="Tạo chat mới">
-            <Plus size={16} />
-          </Button>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 700 }}>Trò chuyện</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateGroupModalOpen(true)}
+              title="Tạo nhóm trò chuyện"
+            >
+              <Users size={15} />
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsNewChatModalOpen(true)}
+              title="Tạo chat 1-1"
+            >
+              <Plus size={16} />
+            </Button>
+          </div>
         </div>
 
         <OnlineFriendsBar onSelectUser={(uid) => handleStartNewChat(undefined, uid)} />
@@ -426,15 +446,29 @@ export const ChatPage: React.FC = () => {
                 </div>
               </div>
 
-              {otherMember?.userId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate(`/users/${otherMember.userId}`)}
-                >
-                  Xem hồ sơ
-                </Button>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {currentConv?.type === 'Group' ? (
+                  <Button
+                    variant={isGroupInfoOpen ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setIsGroupInfoOpen(!isGroupInfoOpen)}
+                    title="Thông tin nhóm"
+                  >
+                    <Info size={16} />
+                    <span>Chi tiết</span>
+                  </Button>
+                ) : (
+                  otherMember?.userId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/users/${otherMember.userId}`)}
+                    >
+                      Xem hồ sơ
+                    </Button>
+                  )
+                )}
+              </div>
             </div>
 
             {/* Messages Feed Container (Oldest at top, Newest at bottom) */}
@@ -476,6 +510,35 @@ export const ChatPage: React.FC = () => {
 
               {!isMsgLoading &&
                 messages.map((msg) => {
+                  if (msg.type === 'System') {
+                    return (
+                      <div
+                        key={msg.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          margin: '0.5rem 0',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--color-text-muted)',
+                            backgroundColor: 'var(--color-surface-hover)',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: 'var(--radius-full)',
+                            border: '1px solid var(--color-border)',
+                            fontStyle: 'italic',
+                            maxWidth: '85%',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {msg.content}
+                        </span>
+                      </div>
+                    );
+                  }
+
                   const isMine = msg.senderId === user?.id;
 
                   return (
@@ -544,43 +607,69 @@ export const ChatPage: React.FC = () => {
               </button>
             )}
 
-            {/* Message Composer fixed at bottom */}
-            <form
-              onSubmit={handleSendMessage}
-              style={{
-                padding: '1rem',
-                backgroundColor: 'var(--color-surface)',
-                borderTop: '1px solid var(--color-border)',
-                display: 'flex',
-                gap: '0.5rem',
-                alignItems: 'center',
-              }}
-            >
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                placeholder="Nhập tin nhắn..."
-                style={{
-                  flex: 1,
-                  padding: '0.625rem 1rem',
-                  borderRadius: 'var(--radius-full)',
-                  border: '1px solid var(--color-border)',
-                  outline: 'none',
-                  fontSize: '0.9375rem',
-                  backgroundColor: 'var(--color-background)',
-                  color: 'var(--color-text)',
-                }}
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={!messageInput.trim() || isSending}
-                style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
-              >
-                <Send size={18} />
-              </Button>
-            </form>
+            {/* Message Composer / Restriction banner */}
+            {(() => {
+              const sendPermission = canUserSendMessage(currentConv, user?.id);
+              if (!sendPermission.canSend) {
+                return (
+                  <div
+                    style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--color-surface)',
+                      borderTop: '1px solid var(--color-border)',
+                      textAlign: 'center',
+                      fontSize: '0.875rem',
+                      color: sendPermission.reason === 'disbanded' ? 'var(--color-text-muted)' : 'var(--color-warning, #eab308)',
+                      fontStyle: sendPermission.reason === 'disbanded' ? 'italic' : 'normal',
+                      fontWeight: sendPermission.reason === 'admin_only' ? 500 : 400,
+                    }}
+                  >
+                    {sendPermission.reason === 'disbanded'
+                      ? 'Nhóm này đã giải tán (Chế độ chỉ đọc)'
+                      : 'Chỉ trưởng/phó nhóm mới được gửi tin nhắn trong nhóm này'}
+                  </div>
+                );
+              }
+
+              return (
+                <form
+                  onSubmit={handleSendMessage}
+                  style={{
+                    padding: '1rem',
+                    backgroundColor: 'var(--color-surface)',
+                    borderTop: '1px solid var(--color-border)',
+                    display: 'flex',
+                    gap: '0.5rem',
+                    alignItems: 'center',
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder="Nhập tin nhắn..."
+                    style={{
+                      flex: 1,
+                      padding: '0.625rem 1rem',
+                      borderRadius: 'var(--radius-full)',
+                      border: '1px solid var(--color-border)',
+                      outline: 'none',
+                      fontSize: '0.9375rem',
+                      backgroundColor: 'var(--color-background)',
+                      color: 'var(--color-text)',
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={!messageInput.trim() || isSending}
+                    style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
+                  >
+                    <Send size={18} />
+                  </Button>
+                </form>
+              );
+            })()}
           </>
         ) : (
           <EmptyState
@@ -590,6 +679,17 @@ export const ChatPage: React.FC = () => {
           />
         )}
       </div>
+
+      {isGroupInfoOpen && currentConv?.type === 'Group' && (
+        <GroupInfoPanel
+          conversation={currentConv}
+          onClose={() => setIsGroupInfoOpen(false)}
+          onConversationDeleted={() => {
+            setSelectedConvId(null);
+            setIsGroupInfoOpen(false);
+          }}
+        />
+      )}
 
       {/* New Chat Modal */}
       <Modal
@@ -698,6 +798,15 @@ export const ChatPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        isOpen={isCreateGroupModalOpen}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        onGroupCreated={(newConv) => {
+          setSelectedConvId(newConv.id);
+        }}
+      />
     </div>
   );
 };

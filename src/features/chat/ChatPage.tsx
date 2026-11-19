@@ -932,16 +932,27 @@ export const ChatPage: React.FC = () => {
                           }
                         }}
                         title="Gọi thoại"
+                        aria-label="Gọi thoại"
                         style={{
-                          background: 'none',
+                          width: '36px',
+                          height: '36px',
                           border: 'none',
+                          borderRadius: '50%',
                           cursor: 'pointer',
-                          padding: '6px 8px',
-                          borderRadius: '8px',
                           display: 'flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'transparent',
                           color: 'var(--color-primary, #0284c7)',
-                          transition: 'background 0.2s',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(2, 132, 199, 0.12)';
+                          e.currentTarget.style.transform = 'scale(1.08)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.transform = 'scale(1)';
                         }}
                       >
                         <Phone size={18} />
@@ -960,16 +971,27 @@ export const ChatPage: React.FC = () => {
                           }
                         }}
                         title="Gọi video"
+                        aria-label="Gọi video"
                         style={{
-                          background: 'none',
+                          width: '36px',
+                          height: '36px',
                           border: 'none',
+                          borderRadius: '50%',
                           cursor: 'pointer',
-                          padding: '6px 8px',
-                          borderRadius: '8px',
                           display: 'flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'transparent',
                           color: 'var(--color-primary, #0284c7)',
-                          transition: 'background 0.2s',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(2, 132, 199, 0.12)';
+                          e.currentTarget.style.transform = 'scale(1.08)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.transform = 'scale(1)';
                         }}
                       >
                         <Video size={18} />

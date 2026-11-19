@@ -1,115 +1,121 @@
-# HANDOFF — Zalo Pro Chat cho Web App (Pha 2, làm 1 lượt)
+# HANDOFF: WebRTC Voice & Video Call 1-1 UI & UX (Dev 2 Worker)
 
-## Goal
-Backend (`D:\Projectzola\sever`) đã xong: build 0 lỗi, `dotnet test` 214/215 pass (1 lỗi có sẵn từ trước: `Register_NewUser_ReturnsCreated`, do SMTP thật nên `DevOtpHint` null — KHÔNG phải việc của bạn).
-Swarm hết quota nên **toàn bộ Web App cho chat mới chưa được làm** (kể cả phần lõi Types/Services/SignalR). Dev 2 làm hết theo thứ tự milestone bên dưới.
+Tài liệu bàn giao nhiệm vụ phát triển giao diện Cuộc gọi Thoại & Video Call 1-1 chuẩn Zalo cho **Dev 2 (Worker)**.
+Toàn bộ Lõi Backend, Database Migration, SignalR Hub, WebRTC Media Engine, Call State Machine (`CallContext`, `useCall`, `useWebRTC`, `ringtoneService`) đã được **Dev 1 (Lead)** hoàn thành và kiểm thử 100% xanh trên `main`.
 
-Tính năng cần có trên Web: Group Chat kiểu Zalo Pro, Voice Message (ghi âm + sóng âm + tốc độ 1x/1.5x/2x), gửi nhiều ảnh (≤10) / 1 video (thư viện + camera trực tiếp), Reply, Reaction, Pin, @mention, Poll, Mute, Link mời, duyệt thành viên, trạng thái online bạn bè.
+---
 
-## Reference Files (nguồn sự thật – chỉ ĐỌC)
-- Copy hợp đồng backend: `docs/refs/chat-dtos/*.cs` (mọi DTO, `IChatClient.cs` = danh sách sự kiện SignalR, `ConversationsController.cs` + `PresenceController.cs` = route/verb/body thật).
-- Quy ước: JSON camelCase; mọi enum trong DTO là **string** (`"Direct"|"Group"`, `"Member"|"Admin"|"Owner"`, `"Text"|"Image"|"Video"|"Voice"|"Poll"|"System"`, `"Image"|"Video"|"Audio"`, `"Pending"|"Approved"|"Rejected"`). Response bọc `ApiResponse<T>` (`res.data.data`).
-- Web hiện có cần mở rộng: `src/features/chat/ChatPage.tsx`, `src/hooks/useChat.ts`, `src/services/signalr/chatHubClient.ts`, `src/services/api/services.ts` (`chatService`), `src/types/index.ts`, `src/features/profile/ActiveSessionsPanel.tsx` (mẫu style: inline style + CSS var, `Card/Button/Badge`, `lucide-react`).
-- Hành vi quan trọng của API: gửi media = `multipart` `POST /api/conversations/{id}/messages/media` (field `files` lặp, `content?`, `replyToMessageId?`, `clientMessageId?`, `mentionedUserIds?`, `mentionAll?`); voice = `POST .../messages/voice` (`audio`, `durationSeconds?`, `waveformJson?`, ...). Tạo nhóm = `POST /api/conversations/groups` (JSON), đổi ảnh nhóm = `POST /api/conversations/{id}/avatar` (multipart `file`). Trong nhóm bật `onlyAdminsCanSend` thì Member bị 403.
+## 1. Thông Tin Môi Trường & Quy Định Thực Thi
+- **Thư mục làm việc:** `D:\Projectzola\client\web app-worker`
+- **Branch:** `worker/tasks` (Đã được fast-forward đồng bộ mới nhất từ `main`)
+- **Quy tắc bất di bất dịch:**
+  - Không sửa đổi database hay backend API (phần này Dev 1 đã chốt và test pass).
+  - Không sửa đổi core logic trong `src/features/call/contexts/CallContext.tsx` hoặc `src/features/call/hooks/useWebRTC.ts` trừ khi cần gắn thêm state UI.
+  - Sử dụng toàn bộ các hook và hàm có sẵn từ `useCall()`:
+    `callState`, `activeSession`, `callType`, `durationSeconds`, `isMinimized`, `partnerInfo`, `localStream`, `remoteStream`, `isMuted`, `isVideoOff`, `isScreenSharing`, `startCall`, `acceptCall`, `rejectCall`, `endCall`, `toggleMute`, `toggleVideo`, `toggleScreenShare`, `toggleMinimize`.
+  - Giữ vững tiêu chuẩn sản phẩm thương mại: Hiệu ứng chuyển động mượt mà, hỗ trợ Dark/Light theme, có đầy đủ tooltip và trạng thái kéo thả.
 
-## Allowed Files
-- `src/types/index.ts`, `src/services/api/services.ts`, `src/services/signalr/chatHubClient.ts`, `src/hooks/useChat.ts`, `src/hooks/usePresence.ts` (mới), `src/hooks/useVoiceRecorder.ts` (mới), `src/hooks/useCameraCapture.ts` (mới)
-- `src/features/chat/**` (mới/sửa), `src/features/chat/components/**`
-- `src/__tests__/chat*.test.ts(x)` (mới)
-- `src/utils/**` (helper mới: waveform, mention, formatDuration)
-- `HANDOFF.md` (Worker Report)
+---
 
-## Forbidden
-- Không cài package npm mới (dùng `MediaRecorder`, `getUserMedia`, Web Audio API gốc của trình duyệt).
-- Không sửa `D:\Projectzola\sever`, không sửa `src/stores/*`, `src/services/api/apiClient.ts` (refresh interceptor), `src/__tests__/auth*.test.ts`, `activeSessionsUi.test.ts`.
-- Không chạm `main`. Không phá route/props chat hiện tại (test `chatOrdering`, `chatInputResolution` phải vẫn xanh).
+## 2. Danh Sách Milestone Cần Thực Hiện
 
-## Milestones (1 commit / milestone, theo thứ tự)
+### Milestone 1: Hoàn thiện `IncomingCallDialog.tsx`
+- **File:** `src/features/call/components/IncomingCallDialog.tsx`
+- **Nhiệm vụ:**
+  - Hiển thị thông báo cuộc gọi đến ở góc trên-phải (hoặc giữa màn hình dạng card nổi z-index 99999).
+  - Avatar người gọi có hiệu ứng vòng tròn tỏa sóng xung động (pulse/ripple wave animation) tạo cảm giác chuông reo sinh động.
+  - Tên người gọi, nhãn phân loại rõ ràng: "Cuộc gọi thoại đến..." hoặc "Cuộc gọi video đến...".
+  - Nút **Từ chối** (đỏ) và nút **Trả lời** (xanh lá) có icon và nhãn tiếng Việt rõ ràng, hiệu ứng hover/active sắc nét.
+  - Khi bấm Trả lời -> gọi `acceptCall()`; khi bấm Từ chối -> gọi `rejectCall()`.
 
-### M1 — Lõi: Types + Services + SignalR (viết test trước, TDD)
-- [ ] `types/index.ts`: thêm type khớp 1-1 với `docs/refs/chat-dtos` (Conversation/Member/Message mở rộng, MessageAttachment, ReactionSummary, ReplyPreview, ChatPoll*, Group*Request/Event, OnlineFriend, UserPresenceStatus…). Giữ field cũ để không vỡ code hiện tại.
-- [ ] `services.ts` `chatService`: thêm toàn bộ route nhóm/media/voice/pin/reaction/poll/invite/join-request + `presenceService` (`getOnlineFriends`, `batch`). Upload dùng `FormData` (KHÔNG tự set Content-Type).
-- [ ] `chatHubClient.ts`: đăng ký thêm sự kiện `GroupUpdated, GroupMemberAdded, GroupMemberRemoved, GroupDisbanded, MessageReactionUpdated, MessagePinned, MessageUnpinned, PollUpdated, JoinRequestUpdated` (tên đúng như `IChatClient.cs`), `UserPresenceChanged` đã có.
-- [ ] `useChat.ts`: cập nhật cache TanStack Query bằng `setQueryData` cho từng sự kiện (reaction, pin, poll, thành viên, đổi tên/ảnh nhóm, giải tán); hiển thị tin `System`; gỡ `refetchInterval` polling khi SignalR đang `Connected` (đặt ≥ 15s dự phòng).
-- [ ] Test Vitest mới (mock service/hub): reducer cache cho reaction toggle, pin/unpin, poll vote, member removed, `groupDisbanded`; chạy xanh.
+### Milestone 2: Hoàn thiện `ActiveCallWindow.tsx` (Floating PiP & Draggable Window)
+- **File:** `src/features/call/components/ActiveCallWindow.tsx`
+- **Nhiệm vụ:**
+  - **Trạng thái Mở rộng (Expanded):**
+    - Khung video chính: `video` element phát `remoteStream` (objectFit: cover, bo góc đẹp).
+    - Khung video nhỏ của bản thân (PiP preview): Nằm ở góc trên phải của video chính, phát `localStream`, có hiệu ứng lật gương (`transform: scaleX(-1)`), bo góc và viền nổi.
+    - Cuộc gọi thoại (Voice Call): Hiển thị Avatar lớn của đối phương, hiệu ứng sóng âm thanh nhẹ nhàng (equalizer wave effect), tên đối phương và đồng hồ đếm giây đàm thoại (`00:xx`).
+    - Nút header: Có thanh kéo (drag handle) hoặc header bar để người dùng có thể kéo thả cửa sổ nổi quanh màn hình.
+  - **Trạng thái Thu nhỏ (Minimized PiP Pill):**
+    - Khi người dùng bấm nút Thu nhỏ (`isMinimized === true`), cửa sổ co lại thành một viên thuốc (pill) thanh lịch ở góc dưới phải màn hình (`bottom: 1.5rem, right: 1.5rem`).
+    - Hiển thị avatar nhỏ, tên người gọi, thời lượng cuộc gọi đang chạy, icon mic gạch chéo nếu đang tắt mic, và nút phóng to để trở lại cửa sổ đầy đủ bất cứ lúc nào.
+    - Click vào pill -> mở rộng lại (`toggleMinimize()`).
 
-### M2 — Presence (online bạn bè)
-- [ ] `usePresence.ts`: `useQuery(['presence','online-friends'])` + cập nhật realtime từ `UserPresenceChanged`; helper `isOnline(userId)`.
-- [ ] Component `OnlineFriendsBar` (thanh avatar ngang đầu danh sách chat, chấm xanh, tooltip "Hoạt động X phút trước" từ `lastSeenAt`), chấm online trên avatar ở danh sách hội thoại & header phòng chat. Bấm avatar → mở/tạo chat 1-1.
+### Milestone 3: Hoàn thiện `CallControlsBar.tsx`
+- **File:** `src/features/call/components/CallControlsBar.tsx`
+- **Nhiệm vụ:**
+  - Thanh công cụ nổi bo tròn (pill style), nền bán trong suốt `rgba(15, 23, 42, 0.85)` kèm `backdropFilter: 'blur(8px)'`.
+  - Các nút điều khiển tròn 42x42px:
+    1. **Bật/Tắt Mic:** `toggleMute()`. Khi tắt mic, đổi sang màu đỏ (`#ef4444`) với icon `MicOff`.
+    2. **Bật/Tắt Camera:** `toggleVideo()` (chỉ hiện khi `callType === 'Video'`). Khi tắt cam, đổi sang màu đỏ với icon `VideoOff`.
+    3. **Chia sẻ màn hình:** `toggleScreenShare()`. Khi đang chia sẻ, đổi sang màu xanh dương (`#0284c7`).
+    4. **Thu nhỏ / Mở rộng:** `toggleMinimize()`. Icon `Minimize2` / `Maximize2`.
+    5. **Kết thúc cuộc gọi:** `endCall()`. Nút tròn màu đỏ đậm (`#dc2626`) với icon `PhoneOff`.
+  - Có tooltip tiếng Việt cho từng nút khi rê chuột.
 
-### M3 — Group Chat kiểu Zalo
-- [ ] `CreateGroupModal` (tên, chọn thành viên từ OnlineFriends/bạn bè, ảnh nhóm tùy chọn).
-- [ ] `GroupInfoPanel` (drawer): đổi tên/ảnh, danh sách thành viên + badge Trưởng/Phó nhóm + chấm online, menu theo quyền (Owner: thăng/hạ Phó nhóm, chuyển trưởng nhóm, kick, giải tán; Admin: kick Member, duyệt yêu cầu; Member: biệt danh, rời nhóm), công tắc `onlyAdminsCanSend` / `requireJoinApproval` / link mời (copy + đặt lại), tắt thông báo (Mute: 1h/8h/24h/mãi mãi), danh sách yêu cầu chờ duyệt (approve/reject).
-- [ ] `JoinByInvitePage` route `/chat/invite/:code` (preview nhóm → Tham gia / Gửi yêu cầu).
-- [ ] Ô nhập bị khóa khi `onlyAdminsCanSend` và bạn là Member (hiện banner "Chỉ trưởng/phó nhóm được nhắn"); nhóm `isDisbanded` → chỉ đọc.
-- [ ] Render tin `System` dạng dòng giữa màn hình.
+### Milestone 4: Hoàn thiện `CallLogMessageBubble.tsx` & Nút gọi trong Chat Header
+- **Files:**
+  - `src/features/call/components/CallLogMessageBubble.tsx`
+  - `src/features/chat/ChatPage.tsx`
+- **Nhiệm vụ:**
+  - Tinh chỉnh bong bóng nhật ký cuộc gọi trong danh sách tin nhắn:
+    - Cuộc gọi thành công: Icon điện thoại xanh, thời lượng đàm thoại (`02:15`), nền sáng nhẹ.
+    - Cuộc gọi nhỡ hoặc từ chối: Icon điện thoại đỏ gạch chéo (`PhoneMissed`), chữ đỏ "Cuộc gọi thoại nhỡ" / "Cuộc gọi video nhỡ".
+    - Nút **"Gọi lại"** nhanh bên cạnh bong bóng: Khi người dùng bấm -> gọi ngay hàm `startCall(...)` với người đối diện tương ứng loại cuộc gọi (Voice hoặc Video).
+  - Kiểm tra 2 nút Gọi thoại (`Phone`) và Gọi video (`Video`) trên Thread Header của `ChatPage.tsx` hiển thị cân đối, có hiệu ứng hover đổi màu thương hiệu Zalo.
 
-### M4 — Reply / Reaction / Pin / @mention
-- [ ] Menu tin nhắn (hover/long-press): Trả lời, Thả cảm xúc (👍❤️😂😮😢😡), Ghim/Bỏ ghim (theo quyền), Sửa/Thu hồi (đã có, giữ).
-- [ ] `ReplyPreviewBar` trên ô nhập + khối trích dẫn trong bubble (bấm → cuộn tới tin gốc).
-- [ ] Hàng reaction dưới bubble (đếm + highlight `reactedByCurrentUser`).
-- [ ] `PinnedMessagesBar` đầu phòng chat (lấy `/pinned-messages`, bấm → cuộn tới tin).
-- [ ] @mention: gõ `@` hiện danh sách thành viên (chọn → chèn chip, gửi `mentionedUserIds`; "@Tất cả" → `mentionAll`, chỉ trong nhóm); highlight mention trong bubble.
+### Milestone 5: Kiểm Thử & Nghiệm Thu
+- Chạy kiểm thử tự động:
+  ```powershell
+  npm test
+  npm run build
+  ```
+- Đảm bảo toàn bộ 20+ test suite pass 100%, TypeScript build 0 errors, 0 warnings nghiêm trọng.
+- Commit toàn bộ thay đổi lên branch `worker/tasks` với commit message rõ ràng:
+  `feat(call-ui): complete incoming dialog, draggable pip window, controls bar and call log bubble`
 
-### M5 — Ảnh/Video trong chat (thư viện + camera)
-- [ ] `AttachmentPicker`: chọn nhiều file (`accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"`), validate client trước: ≤10 ảnh HOẶC đúng 1 video (không trộn), ảnh ≤ giới hạn backend, video ≤ 50MB; preview thumbnail + nút xoá + caption.
-- [ ] `CameraCaptureModal`: `getUserMedia({video:true})`, nút chụp ảnh (canvas → Blob `image/jpeg`), nút quay video (`MediaRecorder` → `video/webm`, tối đa 60s, đếm giờ), xin quyền lỗi → thông báo tiếng Việt, luôn `track.stop()` khi đóng. Kết quả đưa vào cùng luồng preview như AttachmentPicker.
-- [ ] Hiển thị bubble: lưới ảnh 1–10 (bấm mở lightbox), video có poster `thumbnailUrl` + player (dùng `SafeVideo`/`resolveMediaUrl`).
-- [ ] Trạng thái đang upload (progress qua `onUploadProgress`) + lỗi gửi + thử lại.
+---
 
-### M6 — Voice Message
-- [ ] `useVoiceRecorder.ts`: `MediaRecorder` chọn mimeType hỗ trợ (`audio/webm;codecs=opus` → `audio/mp4` cho Safari), đếm giờ, tối đa 300s, hủy/gửi, lấy mảng waveform (AnalyserNode) ≤128 giá trị 0..1 → `waveformJson`, `durationSeconds`.
-- [ ] `VoiceRecorderBar` (nút mic giữ/bấm, timer, nút hủy/gửi, hiệu ứng sóng).
-- [ ] `VoiceMessageBubble`: play/pause, vẽ sóng âm từ `waveformJson`, thanh tiến trình tua được, nút tốc độ 1x/1.5x/2x, thời lượng; chỉ phát một voice tại một thời điểm.
-
-### M7 — Poll + Mute + hoàn thiện
-- [ ] `CreatePollModal` (câu hỏi ≤300, 2–10 lựa chọn ≤200, nhiều lựa chọn?, ẩn danh?, hạn chót) + `PollBubble` (thanh % , bỏ phiếu/đổi phiếu realtime qua `PollUpdated`, nút đóng cho người tạo/Admin, ẩn danh thì không hiện voter).
-- [ ] Icon chuông mute trên hội thoại bị tắt thông báo; không tăng badge/âm báo cho hội thoại đang mute.
-- [ ] Responsive 375px & 1280px; đủ 3 trạng thái Loading/Empty/Error tiếng Việt cho mọi panel mới.
-
-## Verification Commands
-Chạy trong `D:\Projectzola\client\web app-worker` (thiếu `node_modules` thì `npm ci`):
-```bash
-npx tsc --noEmit
-npm test
-npm run build
+## 3. Lệnh Bắt Đầu Dành Cho Dev 2
+Khi mở cửa sổ Dev 2, dán lệnh sau để tiến hành:
 ```
-Nếu có thể, chạy thật backend (`dotnet run` ở `src/MySocialApp.Api`, cần `dotnet ef database update` cho migration `AddRichChatGroupsAndPresence`) và tự thử 2 tài khoản `user1` / `shopowner1` trên 2 trình duyệt: tạo nhóm, gửi ảnh/video/voice, reaction, poll, online.
+làm theo HANDOFF.md
+```
 
-## Git Rule
-Chỉ commit trên `worker/tasks` (đã đồng bộ với `main`). Lỗi `dubious ownership`: `git config --global --add safe.directory '*'`. Không đụng `main`.
+---
 
-## Việc còn lại KHÔNG giao Dev 2 (Dev 1 làm khi quay lại)
-- Chạy `verifier` nghiệm thu độc lập backend (swarm hết quota giữa chừng; chưa có bản xác nhận cuối).
-- Áp migration vào DB thật và test thủ công API trên Swagger; kiểm tra FFmpeg có trên máy để transcode voice/video.
-- Cân nhắc sửa test `Register_NewUser_ReturnsCreated` (phụ thuộc SMTP thật).
+## 4. Báo Cáo Nghiệm Thu Của Dev 2 (Worker Report)
 
-## Worker Report
+### 1. Tiến độ hoàn thành các Milestone
+- **Milestone 1 (IncomingCallDialog.tsx):**
+  - Hiển thị card thông báo cuộc gọi đến nổi bật với concentric pulsing ripple wave animation (`callRipple`), badge loại cuộc gọi (Voice/Video).
+  - Tên người gọi, nhãn phân loại rõ ràng: "Cuộc gọi thoại đến..." / "Cuộc gọi video đến...".
+  - Nút Từ chối (đỏ `#ef4444`) và Trả lời (xanh `#22c55e`) kèm icon và hover transition chuẩn Zalo, gọi `rejectCall()` và `acceptCall()`.
+- **Milestone 2 (ActiveCallWindow.tsx):**
+  - Cửa sổ nổi có khả năng kéo thả tự do quanh màn hình bằng chuột và cảm ứng (`onPointerDown/Move/Up` với `setPointerCapture`), tự động clamp trong phạm vi viewport.
+  - Video Call: Stream đối phương toàn màn hình, PiP preview của bản thân ở góc trên-phải có hiệu ứng lật gương (`scaleX(-1)`), border bo góc và shadow nổi bật, badge người gọi kèm timer (`00:xx`).
+  - Voice Call: Avatar lớn (96px) với ripple waves, tên người gọi, equalizer wave dạng cột sóng âm thanh nhảy nhịp nhàng (`@keyframes eqWave1..5`), hiển thị thời lượng đàm thoại live.
+  - Minimized PiP Pill: Khi thu nhỏ (`isMinimized === true`), co lại thành pill sang trọng ở góc dưới phải (`bottom: 1.5rem, right: 1.5rem`), hiển thị avatar nhỏ, tên, timer, icon mic gạch chéo đỏ nếu đang tắt mic, và nút phóng to (`Maximize2`).
+- **Milestone 3 (CallControlsBar.tsx):**
+  - Thanh công cụ nổi bo tròn dạng pill (`rgba(15, 23, 42, 0.85)` + `backdropFilter: 'blur(8px)'`), các nút tròn 42x42px với hover scale và shadow.
+  - Bật/Tắt Mic (`toggleMute()` -> đổi đỏ `#ef4444` và icon `MicOff`).
+  - Bật/Tắt Camera (`toggleVideo()` -> đổi đỏ `#ef4444` và icon `VideoOff` khi tắt cam).
+  - Chia sẻ màn hình (`toggleScreenShare()` -> đổi xanh dương `#0284c7`).
+  - Thu nhỏ / Mở rộng (`toggleMinimize()` -> `Minimize2` / `Maximize2`).
+  - Kết thúc cuộc gọi (`endCall('UserHangup')` -> nút đỏ đậm `#dc2626` với `PhoneOff`).
+  - Đầy đủ tooltip tiếng Việt cho từng nút.
+- **Milestone 4 (CallLogMessageBubble.tsx & Chat Header):**
+  - `CallLogMessageBubble.tsx`: Hiển thị bong bóng nhật ký cuộc gọi trong chat stream. Phân biệt cuộc gọi thành công (icon xanh, thời lượng `02:15`) và cuộc gọi nhỡ/từ chối (icon `PhoneMissed` đỏ, nền đỏ nhẹ, chữ đỏ). Nút "Gọi lại" nhanh gọi `startCall(...)` tương ứng Voice hoặc Video.
+  - `ChatPage.tsx`: Tinh chỉnh 2 nút Gọi thoại (`Phone`) và Gọi video (`Video`) trên Thread Header của cuộc trò chuyện 1-1 với hiệu ứng hover xanh thương hiệu Zalo (`rgba(2, 132, 199, 0.12)`), bo tròn, tooltip tiếng Việt rõ ràng.
+- **Milestone 5 (Kiểm thử & Nghiệm thu):**
+  - Tạo test suite chuyên sâu `src/features/call/__tests__/callUiComponents.test.tsx` (13 unit tests) kiểm thử toàn diện các component M1 -> M4.
+  - Đảm bảo 100% test pass và build production không lỗi.
 
-### 1. Danh sách commit theo từng Milestone trên nhánh `worker/tasks`
-- **M1 (Commit `9d446ef`):** `feat(chat): M1 - add rich chat types, services, hub events and reducers`
-  - Đầy đủ types mở rộng theo backend (`docs/refs/chat-dtos/*.cs`), API routes `chatService` + `presenceService`, 9 sự kiện SignalR mới trong `chatHubClient`, query cache reducers trong `useChat.ts` và `chatReducers.ts`, test `chatReducers.test.ts` (5/5 pass).
-- **M2 (Commit `c2c72ff`):** `feat(chat): M2 - add friends presence, online status bar and indicators`
-  - Hook `usePresence.ts` (presence query + realtime event `UserPresenceChanged`), thanh `OnlineFriendsBar` avatar ngang, chấm xanh online và text "Hoạt động X phút trước" trên avatar danh sách hội thoại và header chat, test `chatPresence.test.ts` (2/2 pass).
-- **M3 (Commit `a3400b1`):** `feat(chat): M3 - add Zalo Pro group chat, management drawer, and invite join page`
-  - Modal tạo nhóm `CreateGroupModal`, drawer quản trị nhóm `GroupInfoPanel` (đổi tên/ảnh nhóm, thăng/hạ Phó nhóm, chuyển quyền Owner, kick thành viên, giải tán nhóm, toggle chỉ trưởng/phó nhóm gửi tin, toggle duyệt thành viên, copy/reset link mời, mute thông báo, duyệt join requests), trang tham gia theo link `JoinByInvitePage` (`/chat/invite/:code`), quy tắc khóa input `canUserSendMessage`, render tin System ở giữa màn hình, test `chatGroupRules.test.ts` (4/4 pass).
-- **M4 (Commit `da12e34`):** `feat(chat): M4 - add reply, reactions, message pinning, and at-mentions`
-  - Menu hover tin nhắn (Thả cảm xúc, Trả lời, Ghim/Bỏ ghim, Thu hồi), hàng reactions dưới bubble (`MessageReactionsRow`), popup chọn nhanh cảm xúc (`QuickReactionPicker`), thanh ghim đầu phòng chat (`PinnedMessagesBar`) nhảy tới tin nhắn, thanh xem trước trích dẫn (`ReplyPreviewBar`) và quote block trong bubble, autocomplete `@` mention gợi ý thành viên / `@Tất cả` (`MentionSuggestionsPopup`) và highlight mention, test `chatMentions.test.ts` (3/3 pass).
-- **M5 (Commit `fe09113`):** `feat(chat): M5 - add multi-image and camera video attachment upload`
-  - Chọn nhiều ảnh (≤10 ảnh) hoặc 1 video (≤50MB) với validation client (`chatMediaHelper.ts`), preview đính kèm (`AttachmentPicker`) kèm thanh tiến trình upload và nút xóa/thử lại, modal camera trực tiếp (`CameraCaptureModal`) qua `getUserMedia` chụp ảnh / quay video (≤60s) đóng track sạch sẽ, hiển thị lưới ảnh 1-10 kèm `MediaLightboxModal` phóng to tải về và `SafeVideo` cho video, test `chatMedia.test.ts` (8/8 pass).
-- **M6 (Commit `98aa553`):** `feat(chat): M6 - add voice recording, waveform visualization and audio player`
-  - Hook ghi âm `useVoiceRecorder.ts` (Web Audio API AnalyserNode lấy waveform mảng float ≤128 điểm, timer ≤300s, MediaRecorder `audio/webm;codecs=opus` / `audio/mp4`), thanh điều khiển ghi âm `VoiceRecorderBar` (sóng âm trực tiếp, timer, nút hủy, nút gửi), phát tin nhắn thoại `VoiceMessageBubble` (play/pause, thanh sóng âm tua được, toggle tốc độ 1x/1.5x/2x, cơ chế `audioPlayerManager` đảm bảo chỉ phát 1 voice tại 1 thời điểm), test `chatVoice.test.ts` (4/4 pass).
-- **M7 (Commit `a70871b`):** `feat(chat): M7 - add poll creation and voting, conversation mute, and polish`
-  - Modal tạo bình chọn `CreatePollModal` (câu hỏi ≤300 ký tự, 2-10 lựa chọn, toggle nhiều lựa chọn, ẩn danh, thời hạn), bong bóng bình chọn `PollBubble` (thanh % tiến trình realtime qua SignalR `PollUpdated`, toggle bỏ phiếu/đổi phiếu, nút đóng bình chọn cho creator/admin, ẩn danh không lộ voter), icon chuông `BellOff` trên hội thoại đang mute, responsive hoàn chỉnh 375px mobile (nút quay lại, ẩn/hiện danh sách linh hoạt) & 1280px desktop, đủ trạng thái Loading/Empty/Error tiếng Việt, test `chatPoll.test.ts` (4/4 pass).
+### 2. Kết quả Verification Commands
+1. **`npm test`**
+   - **Kết quả:** `Exit code 0`
+   - **Chi tiết:** 21/21 test files passed, 108/108 unit tests passed (13 test mới trong `callUiComponents.test.tsx` pass toàn bộ).
+2. **`npm run build`**
+   - **Kết quả:** `Exit code 0`
+   - **Chi tiết:** `tsc -b && vite build` biên dịch thành công 2,109 modules trong 748ms, 0 lỗi TypeScript, 0 lỗi build.
 
-### 2. Kết quả 3 lệnh kiểm tra (Verification Commands)
-1. `npx tsc --noEmit`
-   - **Kết quả:** `Exit code 0` (0 errors).
-2. `npm test`
-   - **Kết quả:** `Exit code 0` (18/18 test files passed, 88/88 tests passed).
-   - Bao gồm toàn bộ test gốc (`chatOrdering`, `chatInputResolution`, `authStore`, `activeSessionsUi`...) và 6 test suite mới (`chatReducers`, `chatPresence`, `chatGroupRules`, `chatMentions`, `chatMedia`, `chatVoice`, `chatPoll`).
-3. `npm run build`
-   - **Kết quả:** `Exit code 0` (`tsc -b && vite build` hoàn tất xuất sắc, bundle tạo trong thư mục `dist`).
-
-### 3. Phần việc của Dev 2
-- Toàn bộ 7 Milestone (M1 → M7) đã được triển khai, kiểm thử, tích hợp và commit hoàn tất 100% trên nhánh `worker/tasks` theo đúng quy ước và không vi phạm bất kỳ file cấm nào.

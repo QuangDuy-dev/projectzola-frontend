@@ -67,13 +67,30 @@ async function refreshAccessToken(): Promise<string> {
   return refreshPromise;
 }
 
-// Request Interceptor: Attach JWT Token
+// Request Interceptor: Attach JWT Token & handle FormData
 apiClient.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().accessToken;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // When payload is FormData, remove Content-Type so Axios & browser can set
+    // 'multipart/form-data; boundary=...' automatically without being overridden by default application/json.
+    if (
+      typeof FormData !== 'undefined' &&
+      (config.data instanceof FormData ||
+        Object.prototype.toString.call(config.data) === '[object FormData]')
+    ) {
+      if (typeof config.headers?.delete === 'function') {
+        config.headers.delete('Content-Type');
+        config.headers.delete('content-type');
+      } else if (config.headers) {
+        delete (config.headers as Record<string, any>)['Content-Type'];
+        delete (config.headers as Record<string, any>)['content-type'];
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

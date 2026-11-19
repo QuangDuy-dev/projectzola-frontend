@@ -412,7 +412,8 @@ export const ChatPage: React.FC = () => {
         scrollToBottom('smooth');
       } catch (err: any) {
         console.error('Lỗi tải tệp lên:', err);
-        setUploadError(err?.response?.data?.message || err.message || 'Lỗi tải tệp lên. Vui lòng thử lại.');
+        const serverError = err?.response?.data?.message || err?.response?.data?.title;
+        setUploadError(serverError || (err?.response?.status === 415 ? 'Định dạng phương tiện không được hỗ trợ (415).' : err.message || 'Lỗi tải tệp lên. Vui lòng thử lại.'));
       } finally {
         setIsUploadingMedia(false);
       }
@@ -488,7 +489,8 @@ export const ChatPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Lỗi gửi tin nhắn thoại:', err);
-      alert(err?.response?.data?.message || err.message || 'Lỗi gửi tin nhắn thoại.');
+      const serverError = err?.response?.data?.message || err?.response?.data?.title;
+      alert(serverError || (err?.response?.status === 415 ? 'Định dạng âm thanh không được hỗ trợ (415).' : err.message || 'Lỗi gửi tin nhắn thoại.'));
     } finally {
       setIsSendingVoice(false);
     }

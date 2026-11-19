@@ -679,7 +679,9 @@ export const chatService = {
   async updateGroupAvatar(conversationId: string, file: File | Blob): Promise<GroupEventDto> {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/avatar`, formData);
+    const res = await apiClient.post<ApiResponse<GroupEventDto>>(`/api/conversations/${conversationId}/avatar`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return res.data.data!;
   },
 
@@ -776,6 +778,7 @@ export const chatService = {
 
     const res = await apiClient.post<ApiResponse<MessageDto>>(`/api/conversations/${conversationId}/messages/media`, formData, {
       onUploadProgress,
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data!;
   },
@@ -792,7 +795,22 @@ export const chatService = {
     onUploadProgress?: (progressEvent: any) => void
   ): Promise<MessageDto> {
     const formData = new FormData();
-    formData.append('audio', audio, audio instanceof File ? audio.name : 'voice.webm');
+    let fileName = 'voice.webm';
+    if (audio instanceof File && audio.name) {
+      fileName = audio.name;
+    } else if (audio.type) {
+      const lower = audio.type.toLowerCase();
+      if (lower.includes('mp4') || lower.includes('m4a') || lower.includes('aac')) {
+        fileName = 'voice.m4a';
+      } else if (lower.includes('ogg')) {
+        fileName = 'voice.ogg';
+      } else if (lower.includes('wav')) {
+        fileName = 'voice.wav';
+      } else if (lower.includes('mp3') || lower.includes('mpeg')) {
+        fileName = 'voice.mp3';
+      }
+    }
+    formData.append('audio', audio, fileName);
     if (extra?.durationSeconds != null) formData.append('durationSeconds', String(extra.durationSeconds));
     if (extra?.waveformJson) formData.append('waveformJson', extra.waveformJson);
     if (extra?.replyToMessageId) formData.append('replyToMessageId', extra.replyToMessageId);
@@ -800,6 +818,7 @@ export const chatService = {
 
     const res = await apiClient.post<ApiResponse<MessageDto>>(`/api/conversations/${conversationId}/messages/voice`, formData, {
       onUploadProgress,
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data!;
   },

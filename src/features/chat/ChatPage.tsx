@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDown,
   MessageSquare,
@@ -13,6 +14,8 @@ import {
   Reply,
   Smile,
   Trash2,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useConversationMessages, useConversations, usePinnedMessages } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
@@ -33,6 +36,10 @@ import { PinnedMessagesBar } from './components/PinnedMessagesBar';
 import { ReplyPreviewBar } from './components/ReplyPreviewBar';
 import { MessageReactionsRow, QuickReactionPicker } from './components/MessageReactionsRow';
 import { MentionSuggestionsPopup } from './components/MentionSuggestionsPopup';
+import { AttachmentPicker } from './components/AttachmentPicker';
+import { CameraCaptureModal } from './components/CameraCaptureModal';
+import { MediaGrid } from './components/MediaGrid';
+import { validateMediaFiles } from '../../utils/chatMediaHelper';
 import {
   getMentionQuery,
   getMentionSuggestions,
@@ -112,6 +119,16 @@ export const ChatPage: React.FC = () => {
   const [mentionAll, setMentionAll] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  const queryClient = useQueryClient();
+
+  // M5 state: attachments, camera capture, upload progress
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Scroll to bottom helper
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -145,7 +162,7 @@ export const ChatPage: React.FC = () => {
     }
   };
 
-  // Reset scroll and M4 states on conversation switch
+  // Reset scroll and M4/M5 states on conversation switch
   useEffect(() => {
     setHasNewMessagesBelow(false);
     isNearBottomRef.current = true;
@@ -157,6 +174,10 @@ export const ChatPage: React.FC = () => {
     setMentionMatch(null);
     setMentionedUserIds([]);
     setMentionAll(false);
+    setSelectedFiles([]);
+    setUploadProgress(null);
+    setUploadError(null);
+    setIsUploadingMedia(false);
   }, [selectedConvId]);
 
   // Handle auto-scroll or unread indicator when messages update
@@ -255,15 +276,112 @@ export const ChatPage: React.FC = () => {
     });
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(e.target.files || []);
+    if (chosen.length === 0) return;
+    e.target.value = '';
+
+    const newCombined = [...selectedFiles, ...chosen];
+    const validation = validateMediaFiles(newCombined);
+    if (!validation.valid) {
+      const standalone = validateMediaFiles(chosen);
+      if (!standalone.valid) {
+        alert(standalone.error);
+        return;
+      }
+      setSelectedFiles(chosen);
+    } else {
+      setSelectedFiles(newCombined);
+    }
+    setUploadError(null);
+  };
+
+  const handleCaptureCamera = (file: File) => {
+    const newCombined = [...selectedFiles, file];
+    const validation = validateMediaFiles(newCombined);
+    if (!validation.valid) {
+      const standalone = validateMediaFiles([file]);
+      if (!standalone.valid) {
+        alert(standalone.error);
+        return;
+      }
+      setSelectedFiles([file]);
+    } else {
+      setSelectedFiles(newCombined);
+    }
+    setUploadError(null);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setUploadError(null);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedConvId) return;
+    if (!selectedConvId) return;
 
     const text = messageInput.trim();
+    if (!text && selectedFiles.length === 0) return;
+
     const replyId = replyingToMessage?.id;
     const uids = mentionedUserIds.length > 0 ? [...mentionedUserIds] : undefined;
     const all = mentionAll;
 
+    if (selectedFiles.length > 0) {
+      setIsUploadingMedia(true);
+      setUploadProgress(0);
+      setUploadError(null);
+
+      try {
+        const sentMessage = await chatService.sendMediaMessage(
+          selectedConvId,
+          selectedFiles,
+          {
+            content: text || undefined,
+            replyToMessageId: replyId,
+            mentionedUserIds: uids,
+            mentionAll: all ? true : undefined,
+          },
+          (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percent);
+            }
+          }
+        );
+
+        queryClient.setQueryData(['messages', selectedConvId], (old: any) => {
+          if (!old) return { items: [sentMessage], totalCount: 1, page: 1, totalPages: 1 };
+          const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === sentMessage.id.toLowerCase());
+          if (exists) return old;
+          return {
+            ...old,
+            items: [...old.items, sentMessage],
+            totalCount: (old.totalCount ?? old.items.length) + 1,
+          };
+        });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+        setMessageInput('');
+        setSelectedFiles([]);
+        setUploadProgress(null);
+        setUploadError(null);
+        setReplyingToMessage(null);
+        setMentionMatch(null);
+        setMentionedUserIds([]);
+        setMentionAll(false);
+        scrollToBottom('smooth');
+      } catch (err: any) {
+        console.error('Lỗi tải tệp lên:', err);
+        setUploadError(err?.response?.data?.message || err.message || 'Lỗi tải tệp lên. Vui lòng thử lại.');
+      } finally {
+        setIsUploadingMedia(false);
+      }
+      return;
+    }
+
+    // Text-only message
     setMessageInput('');
     setReplyingToMessage(null);
     setMentionMatch(null);
@@ -281,6 +399,10 @@ export const ChatPage: React.FC = () => {
     } catch (err: any) {
       alert(err.message || 'Lỗi gửi tin nhắn.');
     }
+  };
+
+  const handleRetryUpload = () => {
+    handleSendMessage({ preventDefault: () => {} } as any);
   };
 
   const handleToggleReaction = async (messageId: string, emoji: string) => {
@@ -941,7 +1063,19 @@ export const ChatPage: React.FC = () => {
                           </div>
                         )}
 
-                        <div>{msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : renderMessageContent(msg.content, isMine)}</div>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <div style={{ marginBottom: msg.content ? '0.5rem' : 0 }}>
+                            <MediaGrid attachments={msg.attachments} isMine={isMine} />
+                          </div>
+                        )}
+
+                        {msg.content && (
+                          <div>{msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : renderMessageContent(msg.content, isMine)}</div>
+                        )}
+
+                        {msg.isDeleted && !msg.content && (
+                          <div><em>Tin nhắn đã bị thu hồi</em></div>
+                        )}
                       </div>
 
                       {/* Reactions row */}
@@ -1054,6 +1188,19 @@ export const ChatPage: React.FC = () => {
                     />
                   )}
 
+                  {/* Attachment Preview Bar */}
+                  {selectedFiles.length > 0 && (
+                    <AttachmentPicker
+                      files={selectedFiles}
+                      onRemoveFile={handleRemoveFile}
+                      onClearAll={() => setSelectedFiles([])}
+                      uploadProgress={uploadProgress}
+                      uploadError={uploadError}
+                      onRetryUpload={handleRetryUpload}
+                      isUploading={isUploadingMedia}
+                    />
+                  )}
+
                   <form
                     onSubmit={handleSendMessage}
                     style={{
@@ -1065,6 +1212,62 @@ export const ChatPage: React.FC = () => {
                       alignItems: 'center',
                     }}
                   >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                      style={{ display: 'none' }}
+                      onChange={handleFileSelect}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Đính kèm ảnh hoặc video"
+                      disabled={isUploadingMedia}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0.375rem',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: selectedFiles.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color =
+                          selectedFiles.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)')
+                      }
+                    >
+                      <ImageIcon size={20} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCameraModalOpen(true)}
+                      title="Chụp ảnh hoặc quay video"
+                      disabled={isUploadingMedia}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0.375rem',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--color-text-muted)',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                    >
+                      <Camera size={20} />
+                    </button>
+
                     <input
                       ref={inputRef}
                       type="text"
@@ -1095,7 +1298,8 @@ export const ChatPage: React.FC = () => {
                     <Button
                       type="submit"
                       variant="primary"
-                      disabled={!messageInput.trim() || isSending}
+                      disabled={(!messageInput.trim() && selectedFiles.length === 0) || isSending || isUploadingMedia}
+                      isLoading={isUploadingMedia || isSending}
                       style={{ borderRadius: 'var(--radius-full)', width: '40px', height: '40px', padding: 0 }}
                     >
                       <Send size={18} />
@@ -1240,6 +1444,13 @@ export const ChatPage: React.FC = () => {
         onGroupCreated={(newConv) => {
           setSelectedConvId(newConv.id);
         }}
+      />
+
+      {/* Camera Capture Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onCapture={handleCaptureCamera}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { useAuthStore } from '../../../stores/authStore';
 import { chatHubClient } from '../../../services/signalr/chatHubClient';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { ringtoneService } from '../utils/webAudioRingtone';
+import { getDynamicRtcConfiguration } from '../utils/rtcConfig';
 
 export type CallLifecycleState =
   | 'IDLE'
@@ -136,8 +137,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Allow Android Chrome audio subsystem to release AudioContext before claiming mic in AEC mode
       await new Promise((resolve) => window.setTimeout(resolve, 80));
 
-      // 1. Start local camera/mic
-      await webRTC.startLocalMedia(callType);
+      // 1. Start local camera/mic + fetch dynamic TURN/STUN config in parallel
+      const [, rtcConfig] = await Promise.all([
+        webRTC.startLocalMedia(callType),
+        getDynamicRtcConfiguration(),
+      ]);
 
       // 2. Initialize PeerConnection with ICE callback
       webRTC.initPeerConnection(
@@ -152,10 +156,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (connectionState) => {
           if (connectionState === 'connected') {
             setCallState('CONNECTED');
-          } else if (connectionState === 'disconnected' || connectionState === 'failed') {
+          } else if (connectionState === 'failed') {
             endCall('ConnectionLost');
           }
-        }
+        },
+        rtcConfig
       );
 
       // 3. Inform server of acceptance
@@ -281,6 +286,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           try {
+            const rtcConfig = await getDynamicRtcConfiguration();
+
             webRTC.initPeerConnection(
               (candidate) => {
                 chatHubClient.sendRtcIceCandidate({
@@ -293,10 +300,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
               (connState) => {
                 if (connState === 'connected') {
                   setCallState('CONNECTED');
-                } else if (connState === 'disconnected' || connState === 'failed') {
+                } else if (connState === 'failed') {
                   endCall('ConnectionLost');
                 }
-              }
+              },
+              rtcConfig
             );
 
             const isVideoCall =

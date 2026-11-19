@@ -11,7 +11,8 @@ export interface UseWebRTCReturn {
   startLocalMedia: (type: CallType) => Promise<MediaStream>;
   initPeerConnection: (
     onIceCandidate: (candidate: RTCIceCandidate) => void,
-    onConnectionStateChange?: (state: RTCPeerConnectionState) => void
+    onConnectionStateChange?: (state: RTCPeerConnectionState) => void,
+    rtcConfig?: RTCConfiguration
   ) => RTCPeerConnection;
   createOffer: (hasVideo?: boolean) => Promise<string>;
   createAnswer: (remoteOfferSdp: string) => Promise<string>;
@@ -96,13 +97,14 @@ export function useWebRTC(): UseWebRTCReturn {
   const initPeerConnection = useCallback(
     (
       onIceCandidate: (candidate: RTCIceCandidate) => void,
-      onConnectionStateChange?: (state: RTCPeerConnectionState) => void
+      onConnectionStateChange?: (state: RTCPeerConnectionState) => void,
+      rtcConfig?: RTCConfiguration
     ): RTCPeerConnection => {
       if (pcRef.current) {
         pcRef.current.close();
       }
 
-      const pc = new RTCPeerConnection(RTC_CONFIGURATION);
+      const pc = new RTCPeerConnection(rtcConfig || RTC_CONFIGURATION);
       pcRef.current = pc;
 
       // Fallback MediaStream if remote peer sends tracks without an associated stream

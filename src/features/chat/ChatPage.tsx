@@ -782,7 +782,20 @@ export const ChatPage: React.FC = () => {
                       </div>
                     </div>
                     <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {conv.lastMessage?.content || 'Chưa có tin nhắn'}
+                      {(() => {
+                        const lastMsg = conv.lastMessage;
+                        if (!lastMsg) return 'Chưa có tin nhắn';
+                        if (lastMsg.isDeleted) return 'Tin nhắn đã bị thu hồi';
+                        if (lastMsg.type === 'CallLog' || lastMsg.content?.startsWith('{"callSessionId"')) {
+                          try {
+                            const parsed = JSON.parse(lastMsg.content) as { text?: string; callType?: string };
+                            return `📞 ${parsed.text || (parsed.callType === 'Video' ? 'Cuộc gọi video' : 'Cuộc gọi thoại')}`;
+                          } catch {
+                            return '📞 Cuộc gọi';
+                          }
+                        }
+                        return lastMsg.content || 'Chưa có tin nhắn';
+                      })()}
                     </p>
                   </div>
                 </div>

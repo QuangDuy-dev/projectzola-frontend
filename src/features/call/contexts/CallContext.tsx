@@ -314,6 +314,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // If peer connection already initialized, create and send answer
         try {
           const answerSdp = await webRTC.createAnswer(offer.sdpOffer);
+          pendingRemoteOfferRef.current = null;
           await chatHubClient.sendRtcAnswer({
             callSessionId: offer.callSessionId,
             sdpAnswer: answerSdp,

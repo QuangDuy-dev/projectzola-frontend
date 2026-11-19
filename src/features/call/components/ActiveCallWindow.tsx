@@ -71,14 +71,14 @@ export const ActiveCallWindow: React.FC = () => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream]);
+  }, [localStream, isMinimized, isVideo, isVideoOff]);
 
   // Attach remote stream
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+  }, [remoteStream, isMinimized, isVideo]);
 
   const isActive =
     callState === 'CALLING_OUTGOING' ||
@@ -414,11 +414,12 @@ export const ActiveCallWindow: React.FC = () => {
         >
           {isVideo ? (
             <>
-              {/* Remote Video Stream */}
+              {/* Remote Video Stream (audio is played via persistent <audio> in CallOverlayRoot) */}
               <video
                 ref={remoteVideoRef}
                 autoPlay
                 playsInline
+                muted
                 style={{
                   width: '100%',
                   height: '100%',

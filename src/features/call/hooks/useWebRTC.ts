@@ -97,10 +97,15 @@ export function useWebRTC(): UseWebRTCReturn {
       const remote = new MediaStream();
       setRemoteStream(remote);
 
-      // Handle remote tracks
+      // Handle remote tracks (supports both event.track and event.streams[0])
       pc.ontrack = (event) => {
+        if (event.track && !remote.getTracks().some((t) => t.id === event.track.id)) {
+          remote.addTrack(event.track);
+        }
         event.streams[0]?.getTracks().forEach((track) => {
-          remote.addTrack(track);
+          if (!remote.getTracks().some((t) => t.id === track.id)) {
+            remote.addTrack(track);
+          }
         });
         setRemoteStream(new MediaStream(remote.getTracks()));
       };

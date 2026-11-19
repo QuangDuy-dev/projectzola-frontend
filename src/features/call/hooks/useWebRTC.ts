@@ -13,7 +13,7 @@ export interface UseWebRTCReturn {
     onIceCandidate: (candidate: RTCIceCandidate) => void,
     onConnectionStateChange?: (state: RTCPeerConnectionState) => void
   ) => RTCPeerConnection;
-  createOffer: () => Promise<string>;
+  createOffer: (hasVideo?: boolean) => Promise<string>;
   createAnswer: (remoteOfferSdp: string) => Promise<string>;
   setRemoteAnswer: (remoteAnswerSdp: string) => Promise<void>;
   addIceCandidate: (candidate: RTCIceCandidateInit) => Promise<void>;
@@ -46,9 +46,11 @@ export function useWebRTC(): UseWebRTCReturn {
     const hasVideo = type === 'Video';
     const constraints: MediaStreamConstraints = {
       audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 },
       },
       video: hasVideo
         ? {
@@ -61,6 +63,9 @@ export function useWebRTC(): UseWebRTCReturn {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream.getAudioTracks().forEach((t) => {
+        t.enabled = true;
+      });
       localStreamRef.current = stream;
       setLocalStream(stream);
       setIsMuted(false);
@@ -68,16 +73,23 @@ export function useWebRTC(): UseWebRTCReturn {
       return stream;
     } catch (err) {
       console.error('Failed to get user media with full constraints:', err);
-      // Fallback: try audio-only if video failed
-      if (hasVideo) {
-        const audioOnlyStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        localStreamRef.current = audioOnlyStream;
-        setLocalStream(audioOnlyStream);
-        setIsMuted(false);
-        setIsVideoOff(true);
-        return audioOnlyStream;
-      }
-      throw err;
+      // Fallback: try basic audio-only constraints (handles devices rejecting strict audio/video constraints)
+      const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
+      audioOnlyStream.getAudioTracks().forEach((t) => {
+        t.enabled = true;
+      });
+      localStreamRef.current = audioOnlyStream;
+      setLocalStream(audioOnlyStream);
+      setIsMuted(false);
+      setIsVideoOff(true);
+      return audioOnlyStream;
     }
   }, []);
 
@@ -93,21 +105,20 @@ export function useWebRTC(): UseWebRTCReturn {
       const pc = new RTCPeerConnection(RTC_CONFIGURATION);
       pcRef.current = pc;
 
-      // Create empty remote stream to bind to elements
-      const remote = new MediaStream();
-      setRemoteStream(remote);
+      // Fallback MediaStream if remote peer sends tracks without an associated stream
+      const fallbackRemote = new MediaStream();
 
-      // Handle remote tracks (supports both event.track and event.streams[0])
+      // Handle remote tracks: prefer event.streams[0] directly so Chrome's hardware AEC
+      // accurately correlates remote playout audio with the RTCPeerConnection (prevents screeching/echo)
       pc.ontrack = (event) => {
-        if (event.track && !remote.getTracks().some((t) => t.id === event.track.id)) {
-          remote.addTrack(event.track);
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+          return;
         }
-        event.streams[0]?.getTracks().forEach((track) => {
-          if (!remote.getTracks().some((t) => t.id === track.id)) {
-            remote.addTrack(track);
-          }
-        });
-        setRemoteStream(new MediaStream(remote.getTracks()));
+        if (event.track && !fallbackRemote.getTracks().some((t) => t.id === event.track.id)) {
+          fallbackRemote.addTrack(event.track);
+        }
+        setRemoteStream(new MediaStream(fallbackRemote.getTracks()));
       };
 
       // Handle ICE candidates generated locally
@@ -134,11 +145,11 @@ export function useWebRTC(): UseWebRTCReturn {
     []
   );
 
-  const createOffer = useCallback(async (): Promise<string> => {
+  const createOffer = useCallback(async (hasVideo = false): Promise<string> => {
     if (!pcRef.current) throw new Error('PeerConnection not initialized');
     const offer = await pcRef.current.createOffer({
       offerToReceiveAudio: true,
-      offerToReceiveVideo: true,
+      offerToReceiveVideo: hasVideo,
     });
     await pcRef.current.setLocalDescription(offer);
     return offer.sdp || '';

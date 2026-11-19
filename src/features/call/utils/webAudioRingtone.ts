@@ -140,13 +140,24 @@ class WebAudioRingtoneManager {
 
       osc.start(now);
       osc.stop(now + 0.35);
+
+      // Release AudioContext after chime finishes so OS audio subsystem isn't held
+      const ctxToClose = ctx;
+      window.setTimeout(() => {
+        if (!this.isPlaying && this.ctx === ctxToClose) {
+          ctxToClose.close().catch(() => {});
+          this.ctx = null;
+        }
+      }, 500);
     } catch {
       // ignore
     }
   }
 
   /**
-   * Stop all active sounds and intervals.
+   * Stop all active sounds, intervals, and close AudioContext.
+   * Closing AudioContext is critical on Android Chrome so WebRTC can enter
+   * MODE_IN_COMMUNICATION with hardware Acoustic Echo Cancellation (AEC).
    */
   public stop(): void {
     this.isPlaying = false;
@@ -164,6 +175,14 @@ class WebAudioRingtoneManager {
       }
     });
     this.activeNodes = [];
+
+    if (this.ctx) {
+      const ctxToClose = this.ctx;
+      this.ctx = null;
+      if (ctxToClose.state !== 'closed') {
+        ctxToClose.close().catch(() => {});
+      }
+    }
   }
 }
 

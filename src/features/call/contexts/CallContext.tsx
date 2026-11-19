@@ -133,6 +133,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCallState('CONNECTING');
 
     try {
+      // Allow Android Chrome audio subsystem to release AudioContext before claiming mic in AEC mode
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
+
       // 1. Start local camera/mic
       await webRTC.startLocalMedia(callType);
 
@@ -296,7 +299,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             );
 
-            const offerSdp = await webRTC.createOffer();
+            const isVideoCall =
+              session.type === 'Video' || (session.type as unknown as number) === 1;
+            const offerSdp = await webRTC.createOffer(isVideoCall);
             await chatHubClient.sendRtcOffer({
               callSessionId: session.id,
               sdpOffer: offerSdp,

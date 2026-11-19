@@ -15,7 +15,7 @@ export const CallOverlayRoot: React.FC = () => {
       if (audioEl.srcObject !== remoteStream) {
         audioEl.srcObject = remoteStream;
       }
-      audioEl.volume = 1.0;
+      audioEl.volume = 0.85;
       audioEl.muted = false;
       audioEl.play().catch((err) => {
         console.warn('Remote audio autoplay blocked; waiting for user gesture:', err);

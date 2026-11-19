@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Play } from 'lucide-react';
 import { resolveMediaUrl } from '../../../utils/mediaUrl';
 import { SafeVideo } from '../../../components/common/SafeVideo';
 import { MediaLightboxModal } from './MediaLightboxModal';
@@ -10,7 +9,7 @@ interface MediaGridProps {
   isMine?: boolean;
 }
 
-export const MediaGrid: React.FC<MediaGridProps> = ({ attachments, isMine }) => {
+export const MediaGrid: React.FC<MediaGridProps> = ({ attachments }) => {
   const [selectedAttachmentIndex, setSelectedAttachmentIndex] = useState<number | null>(null);
 
   if (!attachments || attachments.length === 0) return null;

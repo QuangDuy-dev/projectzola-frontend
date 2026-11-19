@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Image as ImageIcon, Film, AlertTriangle, RefreshCw } from 'lucide-react';
+import { X, Film, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 
 export interface AttachmentItem {

@@ -7,7 +7,6 @@ import type { ConversationDto, MessageDto, PagedResult, SendMessageRequest } fro
 import {
   applyGroupDisbanded,
   applyGroupMemberRemoved,
-  applyGroupUpdated,
   applyPinUpdate,
   applyPollUpdate,
   applyReactionUpdate,

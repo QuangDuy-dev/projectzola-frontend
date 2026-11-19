@@ -11,13 +11,11 @@ import {
   RefreshCw,
   Shield,
   Trash2,
-  UserCheck,
   UserMinus,
   UserX,
   X,
   BellOff,
   Bell,
-  Users,
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { usePresence } from '../../../hooks/usePresence';
@@ -694,8 +692,8 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
                         {member.nickname || member.displayName}
                         {isMemberSelf && ' (Bạn)'}
                       </span>
-                      {isMemberOwner && <Crown size={12} color="var(--color-primary)" title="Trưởng nhóm" />}
-                      {isMemberAdmin && !isMemberOwner && <Shield size={12} color="var(--color-warning, #eab308)" title="Phó nhóm" />}
+                      {isMemberOwner && <span title="Trưởng nhóm"><Crown size={12} color="var(--color-primary)" /></span>}
+                      {isMemberAdmin && !isMemberOwner && <span title="Phó nhóm"><Shield size={12} color="var(--color-warning, #eab308)" /></span>}
                     </div>
                     {member.nickname && (
                       <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>

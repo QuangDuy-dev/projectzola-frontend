@@ -17,6 +17,9 @@ import {
   Camera,
   Image as ImageIcon,
   Mic,
+  BarChart2,
+  BellOff,
+  ChevronLeft,
 } from 'lucide-react';
 import { useConversationMessages, useConversations, usePinnedMessages } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
@@ -42,6 +45,8 @@ import { CameraCaptureModal } from './components/CameraCaptureModal';
 import { MediaGrid } from './components/MediaGrid';
 import { VoiceRecorderBar } from './components/VoiceRecorderBar';
 import { VoiceMessageBubble } from './components/VoiceMessageBubble';
+import { CreatePollModal } from './components/CreatePollModal';
+import { PollBubble } from './components/PollBubble';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { validateMediaFiles } from '../../utils/chatMediaHelper';
 import {
@@ -50,8 +55,8 @@ import {
   insertMention,
   type MentionSuggestion,
 } from '../../utils/mentionHelper';
-import { canUserSendMessage } from '../../utils/chatReducers';
-import type { MessageDto } from '../../types';
+import { canUserSendMessage, applyPollUpdate } from '../../utils/chatReducers';
+import type { MessageDto, CreatePollRequest } from '../../types';
 
 const DEFAULT_SYSTEM_ACCOUNTS = [
   { username: 'shopowner1', displayName: 'Shop Owner', role: 'ShopOwner', id: '5c800801-3f2d-4c03-9e4d-8d37fe7da4db' },
@@ -74,6 +79,14 @@ export const ChatPage: React.FC = () => {
   const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
   const [isSignalRConnected, setIsSignalRConnected] = useState(chatHubClient.isConnected());
+  const [isCreatePollOpen, setIsCreatePollOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     setIsSignalRConnected(chatHubClient.isConnected());
@@ -118,7 +131,7 @@ export const ChatPage: React.FC = () => {
   const [replyingToMessage, setReplyingToMessage] = useState<MessageDto | null>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [activeReactionPickerMessageId, setActiveReactionPickerMessageId] = useState<string | null>(null);
-  const [mentionMatch, setMentionMatch] = useState<{ query: string; index: number } | null>(null);
+  const [mentionMatch, setMentionMatch] = useState<{ isMentioning: boolean; query: string; startIndex: number } | null>(null);
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const [mentionAll, setMentionAll] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -257,8 +270,8 @@ export const ChatPage: React.FC = () => {
   const otherMember = currentConv?.members.find((m) => m.userId !== user?.id) || currentConv?.members[0];
 
   const mentionSuggestions =
-    mentionMatch && currentConv?.type === 'Group' && currentConv.members
-      ? getMentionSuggestions(mentionMatch.query, currentConv.members, user?.id)
+    mentionMatch && mentionMatch.isMentioning && currentConv?.type === 'Group' && currentConv.members
+      ? getMentionSuggestions(currentConv.members, mentionMatch.query, true)
       : [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,23 +288,23 @@ export const ChatPage: React.FC = () => {
 
   const handleSelectMention = (suggestion: MentionSuggestion) => {
     if (!mentionMatch) return;
-    const { newContent, newCursorPosition } = insertMention(
+    const { newText, newCursor } = insertMention(
       messageInput,
-      mentionMatch.index,
+      mentionMatch.startIndex,
       mentionMatch.query.length,
       suggestion
     );
-    setMessageInput(newContent);
-    if (suggestion.userId === 'ALL') {
+    setMessageInput(newText);
+    if (suggestion.isAll || suggestion.id === 'ALL') {
       setMentionAll(true);
     } else {
-      setMentionedUserIds((prev) => Array.from(new Set([...prev, suggestion.userId])));
+      setMentionedUserIds((prev) => Array.from(new Set([...prev, suggestion.id])));
     }
     setMentionMatch(null);
     requestAnimationFrame(() => {
       if (inputRef.current) {
         inputRef.current.focus();
-        inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+        inputRef.current.setSelectionRange(newCursor, newCursor);
       }
     });
   };
@@ -476,11 +489,52 @@ export const ChatPage: React.FC = () => {
     }
   };
 
+  const handleCreatePoll = async (data: CreatePollRequest) => {
+    if (!selectedConvId) return;
+    const sentMsg = await chatService.createPoll(selectedConvId, data);
+    queryClient.setQueryData(['messages', selectedConvId], (old: any) => {
+      if (!old) return { items: [sentMsg], totalCount: 1, page: 1, totalPages: 1 };
+      const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === sentMsg.id.toLowerCase());
+      if (exists) return old;
+      return {
+        ...old,
+        items: [...old.items, sentMsg],
+        totalCount: (old.totalCount ?? old.items.length) + 1,
+      };
+    });
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    scrollToBottom('smooth');
+  };
+
+  const handleVotePoll = async (pollId: string, optionIds: string[]) => {
+    if (!selectedConvId) return;
+    const updated = await chatService.votePoll(selectedConvId, pollId, { optionIds });
+    queryClient.setQueryData(['messages', selectedConvId], (old: any) => {
+      if (!old?.items) return old;
+      return {
+        ...old,
+        items: applyPollUpdate(old.items, updated),
+      };
+    });
+  };
+
+  const handleClosePoll = async (pollId: string) => {
+    if (!selectedConvId) return;
+    const updated = await chatService.closePoll(selectedConvId, pollId);
+    queryClient.setQueryData(['messages', selectedConvId], (old: any) => {
+      if (!old?.items) return old;
+      return {
+        ...old,
+        items: applyPollUpdate(old.items, updated),
+      };
+    });
+  };
+
   const handleToggleReaction = async (messageId: string, emoji: string) => {
     if (!selectedConvId) return;
     setActiveReactionPickerMessageId(null);
     try {
-      await chatService.reactMessage(selectedConvId, messageId, emoji);
+      await chatService.toggleReaction(selectedConvId, messageId, { emoji });
     } catch (err: any) {
       console.error('Lỗi thả cảm xúc:', err);
     }
@@ -616,9 +670,9 @@ export const ChatPage: React.FC = () => {
       {/* Left Sidebar: Conversation List */}
       <div
         style={{
-          width: '320px',
-          borderRight: '1px solid var(--color-border)',
-          display: 'flex',
+          width: isMobile ? '100%' : '320px',
+          borderRight: isMobile ? 'none' : '1px solid var(--color-border)',
+          display: isMobile && selectedConvId ? 'none' : 'flex',
           flexDirection: 'column',
           backgroundColor: 'var(--color-surface)',
         }}
@@ -709,11 +763,18 @@ export const ChatPage: React.FC = () => {
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.9375rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        {conv.type === 'Group'
-                          ? conv.name || 'Nhóm trò chuyện'
-                          : partner?.displayName || 'Người dùng'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', overflow: 'hidden' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.9375rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                          {conv.type === 'Group'
+                            ? conv.name || 'Nhóm trò chuyện'
+                            : partner?.displayName || 'Người dùng'}
+                        </span>
+                        {conv.mutedUntil && new Date(conv.mutedUntil) > new Date() && (
+                          <span title="Đã tắt thông báo" style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                            <BellOff size={13} color="var(--color-text-muted)" />
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {conv.lastMessage?.content || 'Chưa có tin nhắn'}
@@ -726,7 +787,15 @@ export const ChatPage: React.FC = () => {
       </div>
 
       {/* Right Thread: Messages */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-background)', position: 'relative' }}>
+      <div
+        style={{
+          flex: 1,
+          display: isMobile && !selectedConvId ? 'none' : 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'var(--color-background)',
+          position: 'relative',
+        }}
+      >
         {selectedConvId && currentConv ? (
           <>
             {/* Thread Header with partner identity link */}
@@ -741,20 +810,39 @@ export const ChatPage: React.FC = () => {
                 justifyContent: 'space-between',
               }}
             >
-              <div
-                onClick={() => {
-                  if (otherMember?.userId) {
-                    navigate(`/users/${otherMember.userId}`);
-                  }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  cursor: otherMember?.userId ? 'pointer' : 'default',
-                }}
-                title={otherMember?.userId ? `Xem hồ sơ của ${otherMember.displayName}` : undefined}
-              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {isMobile && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedConvId(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'var(--color-text)',
+                    }}
+                    title="Quay lại danh sách"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                )}
+                <div
+                  onClick={() => {
+                    if (otherMember?.userId) {
+                      navigate(`/users/${otherMember.userId}`);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    cursor: otherMember?.userId ? 'pointer' : 'default',
+                  }}
+                  title={otherMember?.userId ? `Xem hồ sơ của ${otherMember.displayName}` : undefined}
+                >
                 <div style={{ position: 'relative' }}>
                   <UserAvatar
                     avatarUrl={otherMember?.avatarUrl}
@@ -809,6 +897,7 @@ export const ChatPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {currentConv?.type === 'Group' ? (
@@ -838,9 +927,10 @@ export const ChatPage: React.FC = () => {
             {/* Pinned Messages Bar */}
             {pinnedMessages && pinnedMessages.length > 0 && (
               <PinnedMessagesBar
-                messages={pinnedMessages}
-                onJumpToMessage={handleJumpToMessage}
+                pinnedMessages={pinnedMessages}
+                onScrollToMessage={handleJumpToMessage}
                 onUnpin={(msgId) => unpinMessage(msgId)}
+                canUnpin={true}
               />
             )}
 
@@ -1062,14 +1152,13 @@ export const ChatPage: React.FC = () => {
                           }}
                         >
                           <QuickReactionPicker
-                            onSelectReaction={(emoji) => handleToggleReaction(msg.id, emoji)}
-                            onClose={() => setActiveReactionPickerMessageId(null)}
+                            onSelectEmoji={(emoji) => handleToggleReaction(msg.id, emoji)}
                           />
                         </div>
                       )}
 
                       {/* Sender name for group chat when not mine */}
-                      {!isMine && currentConv?.type === 'Group' && msg.sender && (
+                      {!isMine && currentConv?.type === 'Group' && (msg.senderDisplayName || msg.senderUsername) && (
                         <span
                           style={{
                             fontSize: '0.75rem',
@@ -1079,7 +1168,7 @@ export const ChatPage: React.FC = () => {
                             marginLeft: '4px',
                           }}
                         >
-                          {msg.sender.displayName || msg.sender.username}
+                          {msg.senderDisplayName || msg.senderUsername}
                         </span>
                       )}
 
@@ -1119,7 +1208,7 @@ export const ChatPage: React.FC = () => {
                             title="Bấm để cuộn đến tin nhắn gốc"
                           >
                             <div style={{ fontWeight: 600 }}>
-                              {msg.replyTo.sender?.displayName || msg.replyTo.sender?.username || 'Tin nhắn'}
+                              {msg.replyTo.senderDisplayName || msg.replyTo.senderUsername || 'Tin nhắn'}
                             </div>
                             <div
                               style={{
@@ -1158,6 +1247,22 @@ export const ChatPage: React.FC = () => {
                           );
                         })()}
 
+                        {msg.poll && (
+                          <div style={{ marginBottom: msg.content ? '0.5rem' : 0 }}>
+                            <PollBubble
+                              poll={msg.poll}
+                              currentUserId={user?.id}
+                              canClosePoll={
+                                msg.poll.createdById === user?.id ||
+                                currentConv?.members.find((m) => m.userId === user?.id)?.role === 'Admin' ||
+                                currentConv?.members.find((m) => m.userId === user?.id)?.role === 'Owner'
+                              }
+                              onVote={(optionIds) => handleVotePoll(msg.poll!.id, optionIds)}
+                              onClosePoll={() => handleClosePoll(msg.poll!.id)}
+                            />
+                          </div>
+                        )}
+
                         {msg.content && (
                           <div>{msg.isDeleted ? 'Tin nhắn đã bị thu hồi' : renderMessageContent(msg.content, isMine)}</div>
                         )}
@@ -1172,7 +1277,7 @@ export const ChatPage: React.FC = () => {
                         <div style={{ marginTop: '0.25rem' }}>
                           <MessageReactionsRow
                             reactions={msg.reactions}
-                            currentUserId={user?.id}
+                            isMine={isMine}
                             onToggleReaction={(emoji) => handleToggleReaction(msg.id, emoji)}
                           />
                         </div>
@@ -1262,12 +1367,11 @@ export const ChatPage: React.FC = () => {
               return (
                 <div style={{ position: 'relative' }}>
                   {/* Mention Suggestions Popup */}
-                  {mentionSuggestions.length > 0 && mentionMatch && (
-                    <MentionSuggestionsPopup
-                      suggestions={mentionSuggestions}
-                      onSelect={handleSelectMention}
-                    />
-                  )}
+                  <MentionSuggestionsPopup
+                    isOpen={mentionSuggestions.length > 0 && !!mentionMatch}
+                    suggestions={mentionSuggestions}
+                    onSelect={handleSelectMention}
+                  />
 
                   {/* Reply Preview Bar */}
                   {replyingToMessage && (
@@ -1388,6 +1492,30 @@ export const ChatPage: React.FC = () => {
                       >
                         <Mic size={20} />
                       </button>
+
+                      {currentConv?.type === 'Group' && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCreatePollOpen(true)}
+                          title="Tạo cuộc bình chọn"
+                          disabled={isUploadingMedia || isSending}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '0.375rem',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--color-text-muted)',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                        >
+                          <BarChart2 size={20} />
+                        </button>
+                      )}
 
                       <input
                         ref={inputRef}
@@ -1573,6 +1701,13 @@ export const ChatPage: React.FC = () => {
         isOpen={isCameraModalOpen}
         onClose={() => setIsCameraModalOpen(false)}
         onCapture={handleCaptureCamera}
+      />
+
+      {/* Create Poll Modal */}
+      <CreatePollModal
+        isOpen={isCreatePollOpen}
+        onClose={() => setIsCreatePollOpen(false)}
+        onSubmit={handleCreatePoll}
       />
     </div>
   );

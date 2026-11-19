@@ -15,6 +15,7 @@ import { ShopDetailPage } from '../../features/shopping/ShopDetailPage';
 import { CartPage } from '../../features/cart/CartPage';
 import { BuyerOrdersPage } from '../../features/orders/BuyerOrdersPage';
 import { ChatPage } from '../../features/chat/ChatPage';
+import { JoinByInvitePage } from '../../features/chat/JoinByInvitePage';
 import { NotificationsPage } from '../../features/notifications/NotificationsPage';
 import { AssistantPage } from '../../features/chatbot/AssistantPage';
 import { ProfilePage } from '../../features/profile/ProfilePage';
@@ -42,6 +43,7 @@ export const AppRouter: React.FC = () => {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/orders" element={<BuyerOrdersPage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/invite/:code" element={<JoinByInvitePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/profile" element={<ProfilePage />} />

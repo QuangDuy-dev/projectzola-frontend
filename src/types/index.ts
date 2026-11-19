@@ -456,12 +456,83 @@ export interface UpdateCategoryRequest {
 // 9. CHAT & REALTIME
 // ==========================================
 
+export type ConversationType = 'Direct' | 'Group' | string;
+export type MemberRole = 'Member' | 'Admin' | 'Owner' | string;
+export type MessageType = 'Text' | 'Image' | 'Video' | 'Voice' | 'Poll' | 'System' | string;
+export type AttachmentType = 'Image' | 'Video' | 'Audio' | string;
+export type JoinRequestStatus = 'Pending' | 'Approved' | 'Rejected' | string;
+
 export interface ConversationMemberDto {
   userId: string;
   username: string;
   displayName: string;
   avatarUrl?: string | null;
   lastReadAt?: string | null;
+  role?: MemberRole;
+  nickname?: string | null;
+  mutedUntil?: string | null;
+  isOnline?: boolean;
+  lastSeenAt?: string | null;
+}
+
+export interface MessageAttachmentDto {
+  id: string;
+  attachmentType: AttachmentType;
+  storageUrl: string;
+  thumbnailUrl?: string | null;
+  mimeType: string;
+  originalFileName?: string | null;
+  fileSizeBytes: number;
+  durationSeconds?: number | null;
+  waveformJson?: string | null;
+  width?: number | null;
+  height?: number | null;
+  sortOrder: number;
+}
+
+export interface MessageReactionSummaryDto {
+  emoji: string;
+  count: number;
+  userIds: string[];
+  reactedByCurrentUser: boolean;
+}
+
+export interface ReplyMessagePreviewDto {
+  id: string;
+  senderId: string;
+  senderUsername: string;
+  senderDisplayName: string;
+  type: MessageType;
+  content: string;
+  isDeleted: boolean;
+  thumbnailUrl?: string | null;
+}
+
+export interface ChatPollOptionDto {
+  id: string;
+  text: string;
+  sortOrder: number;
+  voteCount: number;
+  votedByCurrentUser: boolean;
+  voterIds: string[];
+}
+
+export interface ChatPollDto {
+  id: string;
+  conversationId: string;
+  messageId?: string | null;
+  createdById: string;
+  createdByDisplayName: string;
+  question: string;
+  allowMultipleChoices: boolean;
+  isAnonymous: boolean;
+  isClosed: boolean;
+  expiresAt?: string | null;
+  closedAt?: string | null;
+  createdAt: string;
+  totalVotes: number;
+  totalVoters: number;
+  options: ChatPollOptionDto[];
 }
 
 export interface MessageDto {
@@ -470,15 +541,38 @@ export interface MessageDto {
   senderId: string;
   senderUsername: string;
   senderDisplayName: string;
+  type?: MessageType;
   content: string;
   clientMessageId?: string | null;
   isDeleted: boolean;
   createdAt: string;
   editedAt?: string | null;
+  replyToMessageId?: string | null;
+  replyTo?: ReplyMessagePreviewDto | null;
+  mentionedUserIds?: string[];
+  mentionAll?: boolean;
+  isPinned?: boolean;
+  pinnedById?: string | null;
+  pinnedAt?: string | null;
+  attachments?: MessageAttachmentDto[];
+  reactions?: MessageReactionSummaryDto[];
+  poll?: ChatPollDto | null;
 }
 
 export interface ConversationDto {
   id: string;
+  type?: ConversationType;
+  name?: string | null;
+  avatarUrl?: string | null;
+  createdById?: string | null;
+  inviteCode?: string | null;
+  isInviteLinkEnabled?: boolean;
+  requireJoinApproval?: boolean;
+  onlyAdminsCanSend?: boolean;
+  isDisbanded?: boolean;
+  pinnedCount?: number;
+  mutedUntil?: string | null;
+  currentUserRole?: MemberRole | null;
   members: ConversationMemberDto[];
   lastMessage?: MessageDto | null;
   unreadCount: number;
@@ -486,9 +580,149 @@ export interface ConversationDto {
   updatedAt: string;
 }
 
+export interface GroupJoinRequestDto {
+  id: string;
+  conversationId: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  requestedById?: string | null;
+  requestedByDisplayName?: string | null;
+  status: JoinRequestStatus;
+  reviewedById?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+}
+
+export interface GroupEventDto {
+  conversationId: string;
+  eventType: string;
+  actorUserId: string;
+  affectedUserIds: string[];
+  conversation?: ConversationDto | null;
+  joinRequest?: GroupJoinRequestDto | null;
+  systemMessage?: MessageDto | null;
+  timestamp: string;
+}
+
+export interface MessageReactionEventDto {
+  conversationId: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+  added: boolean;
+  reactions: MessageReactionSummaryDto[];
+}
+
+export interface MessagePinEventDto {
+  conversationId: string;
+  messageId: string;
+  isPinned: boolean;
+  pinnedById?: string | null;
+  pinnedAt?: string | null;
+  message?: MessageDto | null;
+}
+
+export interface PollUpdatedEventDto {
+  conversationId: string;
+  messageId?: string | null;
+  poll: ChatPollDto;
+}
+
+export interface GroupInvitePreviewDto {
+  conversationId: string;
+  name: string;
+  avatarUrl?: string | null;
+  memberCount: number;
+  requireJoinApproval: boolean;
+  isAlreadyMember: boolean;
+  hasPendingRequest: boolean;
+  inviteCode: string;
+}
+
+export interface OnlineFriendDto {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  isOnline: boolean;
+  lastSeenAt?: string | null;
+  relationship: 'MutualFollow' | 'DirectContact' | string;
+}
+
+export interface UserPresenceStatusDto {
+  userId: string;
+  isOnline: boolean;
+  lastSeenAt?: string | null;
+}
+
 export interface SendMessageRequest {
   content: string;
   clientMessageId?: string;
+  replyToMessageId?: string;
+  mentionedUserIds?: string[];
+  mentionAll?: boolean;
+}
+
+export interface CreateGroupConversationRequest {
+  name: string;
+  memberIds: string[];
+  requireJoinApproval?: boolean;
+  onlyAdminsCanSend?: boolean;
+  isInviteLinkEnabled?: boolean;
+}
+
+export interface UpdateGroupSettingsRequest {
+  name?: string | null;
+  requireJoinApproval?: boolean | null;
+  onlyAdminsCanSend?: boolean | null;
+  isInviteLinkEnabled?: boolean | null;
+}
+
+export interface AddGroupMembersRequest {
+  memberIds: string[];
+}
+
+export interface UpdateMemberRoleRequest {
+  role: 'Member' | 'Admin' | string;
+}
+
+export interface UpdateNicknameRequest {
+  nickname?: string | null;
+}
+
+export interface TransferOwnershipRequest {
+  newOwnerUserId: string;
+}
+
+export interface LeaveGroupRequest {
+  newOwnerUserId?: string | null;
+}
+
+export interface MuteConversationRequest {
+  mutedUntil?: string | null;
+}
+
+export interface ReviewJoinRequestDto {
+  status: 'Approved' | 'Rejected' | string;
+}
+
+export interface ToggleReactionRequest {
+  emoji: string;
+}
+
+export interface CreatePollRequest {
+  question: string;
+  options: string[];
+  allowMultipleChoices?: boolean;
+  isAnonymous?: boolean;
+  expiresAt?: string | null;
+  clientMessageId?: string;
+}
+
+export interface VotePollRequest {
+  optionIds: string[];
 }
 
 export interface EditMessageRequest {

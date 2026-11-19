@@ -3,17 +3,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatService } from '../services/api/services';
 import { chatHubClient } from '../services/signalr/chatHubClient';
 import { useAuthStore } from '../stores/authStore';
-import type { MessageDto } from '../types';
+import type { ConversationDto, MessageDto, PagedResult, SendMessageRequest } from '../types';
+import {
+  applyGroupDisbanded,
+  applyGroupMemberRemoved,
+  applyPinUpdate,
+  applyPollUpdate,
+  applyReactionUpdate,
+} from '../utils/chatReducers';
 
 export function useConversations() {
   const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [isConnected, setIsConnected] = useState(chatHubClient.isConnected());
 
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
     queryFn: () => chatService.getConversations({ page: 1, pageSize: 50 }),
     enabled: isAuthenticated,
-    refetchInterval: 3000,
+    // When SignalR is connected, fallback polling is set to 20s; otherwise 15s
+    refetchInterval: isConnected ? 20000 : 15000,
   });
 
   const createConversationMutation = useMutation({
@@ -30,12 +39,88 @@ export function useConversations() {
     chatHubClient.start();
 
     const unsubscribe = chatHubClient.subscribe({
+      onConnectionStatusChanged: (connected) => {
+        setIsConnected(connected);
+      },
       onReceiveMessage: (msg) => {
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
         queryClient.invalidateQueries({ queryKey: ['messages', msg.conversationId] });
       },
-      onConversationUpdated: () => {
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      onConversationUpdated: (updatedConv) => {
+        queryClient.setQueryData(['conversations'], (old: PagedResult<ConversationDto> | undefined) => {
+          if (!old?.items) return old;
+          return {
+            ...old,
+            items: old.items.map((c) => (c.id.toLowerCase() === updatedConv.id.toLowerCase() ? updatedConv : c)),
+          };
+        });
+        queryClient.setQueryData(['conversation', updatedConv.id], updatedConv);
+      },
+      onGroupUpdated: (eventData) => {
+        if (eventData.conversation) {
+          queryClient.setQueryData(['conversations'], (old: PagedResult<ConversationDto> | undefined) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: old.items.map((c) =>
+                c.id.toLowerCase() === eventData.conversation!.id.toLowerCase() ? eventData.conversation! : c
+              ),
+            };
+          });
+          queryClient.setQueryData(['conversation', eventData.conversation.id], eventData.conversation);
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        }
+      },
+      onGroupMemberAdded: (eventData) => {
+        if (eventData.conversation) {
+          queryClient.setQueryData(['conversations'], (old: PagedResult<ConversationDto> | undefined) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: old.items.map((c) =>
+                c.id.toLowerCase() === eventData.conversation!.id.toLowerCase() ? eventData.conversation! : c
+              ),
+            };
+          });
+          queryClient.setQueryData(['conversation', eventData.conversation.id], eventData.conversation);
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        }
+      },
+      onGroupMemberRemoved: (eventData) => {
+        queryClient.setQueryData(['conversations'], (old: PagedResult<ConversationDto> | undefined) => {
+          if (!old?.items) return old;
+          return {
+            ...old,
+            items: old.items.map((c) =>
+              c.id.toLowerCase() === eventData.conversationId.toLowerCase()
+                ? applyGroupMemberRemoved(c, eventData)
+                : c
+            ),
+          };
+        });
+        queryClient.setQueryData(['conversation', eventData.conversationId], (old: ConversationDto | undefined) => {
+          if (!old) return old;
+          return applyGroupMemberRemoved(old, eventData);
+        });
+      },
+      onGroupDisbanded: (eventData) => {
+        queryClient.setQueryData(['conversations'], (old: PagedResult<ConversationDto> | undefined) => {
+          if (!old?.items) return old;
+          return {
+            ...old,
+            items: old.items.map((c) =>
+              c.id.toLowerCase() === eventData.conversationId.toLowerCase()
+                ? applyGroupDisbanded(c, eventData)
+                : c
+            ),
+          };
+        });
+        queryClient.setQueryData(['conversation', eventData.conversationId], (old: ConversationDto | undefined) => {
+          if (!old) return old;
+          return applyGroupDisbanded(old, eventData);
+        });
       },
     });
 
@@ -75,12 +160,12 @@ export function useConversationMessages(conversationId?: string) {
       };
     },
     enabled: !!conversationId,
-    refetchInterval: 1500,
+    refetchInterval: chatHubClient.isConnected() ? 20000 : 15000,
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content }: { content: string }) =>
-      conversationId ? chatService.sendMessage(conversationId, { content }) : Promise.reject('No conversation'),
+    mutationFn: (data: SendMessageRequest) =>
+      conversationId ? chatService.sendMessage(conversationId, data) : Promise.reject('No conversation'),
     onSuccess: (newMsg) => {
       queryClient.setQueryData(['messages', conversationId], (old: any) => {
         if (!old) return { items: [newMsg], totalCount: 1, page: 1, totalPages: 1 };
@@ -93,6 +178,24 @@ export function useConversationMessages(conversationId?: string) {
         };
       });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: (messageId: string) =>
+      conversationId ? chatService.deleteMessage(conversationId, messageId) : Promise.reject('No conversation'),
+    onSuccess: (deleted) => {
+      queryClient.setQueryData(['messages', conversationId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((m: MessageDto) =>
+            m.id.toLowerCase() === deleted.messageId.toLowerCase()
+              ? { ...m, isDeleted: true, content: 'Tin nhắn đã bị thu hồi' }
+              : m
+          ),
+        };
+      });
     },
   });
 
@@ -187,6 +290,116 @@ export function useConversationMessages(conversationId?: string) {
           });
         }
       },
+      onMessageReactionUpdated: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          queryClient.setQueryData(['messages', conversationId], (old: any) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: applyReactionUpdate(old.items, eventData),
+            };
+          });
+        }
+      },
+      onMessagePinned: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          queryClient.setQueryData(['messages', conversationId], (old: any) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: applyPinUpdate(old.items, eventData),
+            };
+          });
+          queryClient.invalidateQueries({ queryKey: ['pinned-messages', conversationId] });
+        }
+      },
+      onMessageUnpinned: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          queryClient.setQueryData(['messages', conversationId], (old: any) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: applyPinUpdate(old.items, eventData),
+            };
+          });
+          queryClient.invalidateQueries({ queryKey: ['pinned-messages', conversationId] });
+        }
+      },
+      onPollUpdated: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          queryClient.setQueryData(['messages', conversationId], (old: any) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: applyPollUpdate(old.items, eventData),
+            };
+          });
+        }
+      },
+      onGroupUpdated: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          if (eventData.systemMessage) {
+            queryClient.setQueryData(['messages', conversationId], (old: any) => {
+              if (!old?.items) return old;
+              const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === eventData.systemMessage!.id.toLowerCase());
+              if (exists) return old;
+              return {
+                ...old,
+                items: [...old.items, eventData.systemMessage],
+                totalCount: (old.totalCount ?? old.items.length) + 1,
+              };
+            });
+          }
+        }
+      },
+      onGroupMemberAdded: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          if (eventData.systemMessage) {
+            queryClient.setQueryData(['messages', conversationId], (old: any) => {
+              if (!old?.items) return old;
+              const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === eventData.systemMessage!.id.toLowerCase());
+              if (exists) return old;
+              return {
+                ...old,
+                items: [...old.items, eventData.systemMessage],
+                totalCount: (old.totalCount ?? old.items.length) + 1,
+              };
+            });
+          }
+        }
+      },
+      onGroupMemberRemoved: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          if (eventData.systemMessage) {
+            queryClient.setQueryData(['messages', conversationId], (old: any) => {
+              if (!old?.items) return old;
+              const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === eventData.systemMessage!.id.toLowerCase());
+              if (exists) return old;
+              return {
+                ...old,
+                items: [...old.items, eventData.systemMessage],
+                totalCount: (old.totalCount ?? old.items.length) + 1,
+              };
+            });
+          }
+        }
+      },
+      onGroupDisbanded: (eventData) => {
+        if (eventData.conversationId.toLowerCase() === conversationId.toLowerCase()) {
+          if (eventData.systemMessage) {
+            queryClient.setQueryData(['messages', conversationId], (old: any) => {
+              if (!old?.items) return old;
+              const exists = old.items.some((m: MessageDto) => m.id.toLowerCase() === eventData.systemMessage!.id.toLowerCase());
+              if (exists) return old;
+              return {
+                ...old,
+                items: [...old.items, eventData.systemMessage],
+                totalCount: (old.totalCount ?? old.items.length) + 1,
+              };
+            });
+          }
+        }
+      },
     });
 
     return unsubscribe;
@@ -202,9 +415,57 @@ export function useConversationMessages(conversationId?: string) {
     error: messagesQuery.error as Error | null,
     sendMessage: sendMessageMutation.mutateAsync,
     isSending: sendMessageMutation.isPending,
+    deleteMessage: deleteMessageMutation.mutateAsync,
     markRead: markReadMutation.mutateAsync,
     loadOlderMessages,
     hasOlderMessages,
     isLoadingOlder,
+  };
+}
+
+export function usePinnedMessages(conversationId?: string) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ['pinned-messages', conversationId],
+    queryFn: () => (conversationId ? chatService.getPinnedMessages(conversationId) : Promise.resolve([])),
+    enabled: !!conversationId,
+    staleTime: 60000,
+  });
+
+  const pinMessage = async (messageId: string) => {
+    if (!conversationId) return;
+    await chatService.pinMessage(conversationId, messageId);
+    queryClient.invalidateQueries({ queryKey: ['pinned-messages', conversationId] });
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+  };
+
+  const unpinMessage = async (messageId: string) => {
+    if (!conversationId) return;
+    await chatService.unpinMessage(conversationId, messageId);
+    queryClient.invalidateQueries({ queryKey: ['pinned-messages', conversationId] });
+    queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+  };
+
+  return {
+    pinnedMessages: query.data ?? [],
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+    pinMessage,
+    unpinMessage,
+  };
+}
+
+export function useConversationDetails(conversationId?: string) {
+  const query = useQuery({
+    queryKey: ['conversation', conversationId],
+    queryFn: () => (conversationId ? chatService.getConversation(conversationId) : Promise.reject('No conversation ID')),
+    enabled: !!conversationId,
+  });
+
+  return {
+    conversation: query.data,
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+    refetch: query.refetch,
   };
 }
